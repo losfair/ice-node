@@ -6,7 +6,7 @@
         "core.cc"
       ],
       "libraries": [
-        "libice_core.so"
+        "-lice_core"
       ]
     }
   ]

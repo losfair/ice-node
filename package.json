@@ -1,11 +1,28 @@
 {
   "name": "ice-node",
   "version": "0.1.0",
-  "description": "Bindings for the Ice framework",
+  "description": "Bindings for the Ice Web Framework",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install": "node-gyp rebuild"
   },
-  "author": "",
-  "license": "ISC"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/losfair/ice-node.git"
+  },
+  "keywords": [
+    "web",
+    "framework",
+    "performance",
+    "http",
+    "network"
+  ],
+  "author": "Heyang Zhou",
+  "license": "LGPL-3.0",
+  "gypfile": true,
+  "bugs": {
+    "url": "https://github.com/losfair/ice-node/issues"
+  },
+  "homepage": "https://github.com/losfair/ice-node#readme"
 }
