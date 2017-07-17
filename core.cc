@@ -120,12 +120,18 @@ static void add_endpoint(const FunctionCallbackInfo<Value>& args) {
 
     Resource server = servers[id];
 
-    Resource ep = ice_server_router_add_endpoint(server, p);
-    for(auto& f : flags) {
-        ice_core_endpoint_set_flag(ep, f.c_str(), true);
-    }
+    int ep_id = -1;
 
-    int ep_id = ice_core_endpoint_get_id(ep);
+    if(!p || p[0] == 0) {
+        ep_id = -1; // Default endpoint
+    } else {
+        Resource ep = ice_server_router_add_endpoint(server, p);
+        for(auto& f : flags) {
+            ice_core_endpoint_set_flag(ep, f.c_str(), true);
+        }
+
+        ep_id = ice_core_endpoint_get_id(ep);
+    }
 
     Local<Function> _cb = Local<Function>::Cast(args[2]);
     auto cb = new Persistent<Function, CopyablePersistentTraits<Function>>(isolate, _cb);
@@ -330,6 +336,29 @@ static void set_response_status(const FunctionCallbackInfo<Value>& args) {
     ice_glue_response_set_status(resp, status);
 }
 
+static void set_response_header(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 3 || !args[0] -> IsNumber() || !args[1] -> IsString() || !args[2] -> IsString()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int resp_id = args[0] -> NumberValue();
+
+    if(resp_id >= pending_responses.size() || !pending_responses[resp_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid response id"));
+        return;
+    }
+
+    Resource resp = pending_responses[resp_id];
+
+    String::Utf8Value _k(args[1] -> ToString());
+    String::Utf8Value _v(args[2] -> ToString());
+
+    ice_glue_response_add_header(resp, *_k, *_v);
+}
+
 static void set_response_body(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -367,6 +396,7 @@ static void init(Local<Object> exports) {
     NODE_SET_METHOD(exports, "get_request_body", get_request_body);
     NODE_SET_METHOD(exports, "create_response", create_response);
     NODE_SET_METHOD(exports, "set_response_status", set_response_status);
+    NODE_SET_METHOD(exports, "set_response_header", set_response_header);
     NODE_SET_METHOD(exports, "set_response_body", set_response_body);
 }
 
