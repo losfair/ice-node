@@ -27,6 +27,10 @@ extern "C" {
     void ice_glue_request_add_header(Resource t, const char *k, const char *v);
     const char * ice_glue_request_get_header(Resource t, const char *k);
 
+    Resource ice_glue_request_create_header_iterator(Resource t);
+    const char * ice_glue_request_header_iterator_next(Resource t, Resource itr_p);
+    void ice_glue_destroy_header_iterator(Resource itr_p);
+
     void ice_glue_response_add_header(Resource t, const char *k, const char *v);
     const char * ice_glue_response_get_header(Resource t, const char *k);
 

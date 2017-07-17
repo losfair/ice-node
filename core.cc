@@ -1,4 +1,5 @@
 #include <node.h>
+#include <node_buffer.h>
 #include <uv.h>
 #include "imports.h"
 #include <vector>
@@ -6,6 +7,7 @@
 #include <iostream>
 #include <queue>
 #include <mutex>
+#include <string>
 
 using namespace v8;
 
@@ -86,6 +88,27 @@ static void add_endpoint(const FunctionCallbackInfo<Value>& args) {
         return;
     }
 
+    std::vector<std::string> flags;
+
+    if(args.Length() >= 4) {
+        if(!args[3] -> IsArray()) {
+            isolate -> ThrowException(String::NewFromUtf8(isolate, "Expecting an array"));
+            return;
+        }
+        Local<Array> local_flags = Local<Array>::Cast(args[3]);
+        unsigned int local_flags_len = local_flags -> Length();
+
+        for(unsigned int i = 0; i < local_flags_len; i++) {
+            Local<Value> elem = local_flags -> Get(i);
+            if(!elem -> IsString()) {
+                isolate -> ThrowException(String::NewFromUtf8(isolate, "Flags must be strings"));
+                return;
+            }
+            String::Utf8Value _param_name(elem -> ToString());
+            flags.push_back(std::string(*_param_name));
+        }
+    }
+
     unsigned int id = args[0] -> NumberValue();
     String::Utf8Value _p(args[1] -> ToString());
     const char *p = *_p;
@@ -98,6 +121,10 @@ static void add_endpoint(const FunctionCallbackInfo<Value>& args) {
     Resource server = servers[id];
 
     Resource ep = ice_server_router_add_endpoint(server, p);
+    for(auto& f : flags) {
+        ice_core_endpoint_set_flag(ep, f.c_str(), true);
+    }
+
     int ep_id = ice_core_endpoint_get_id(ep);
 
     Local<Function> _cb = Local<Function>::Cast(args[2]);
@@ -207,6 +234,82 @@ static void create_response(const FunctionCallbackInfo<Value>& args) {
     args.GetReturnValue().Set(Number::New(isolate, pr_id));
 }
 
+static void get_request_info(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 1 || !args[0] -> IsNumber()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int call_info_id = args[0] -> NumberValue();
+
+    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+        return;
+    }
+
+    Resource call_info = pending_call_info[call_info_id];
+    Resource req = ice_core_borrow_request_from_call_info(call_info);
+
+    Local<Object> info = Object::New(isolate);
+    info -> Set(String::NewFromUtf8(isolate, "uri"), String::NewFromUtf8(isolate, ice_glue_request_get_uri(req)));
+    info -> Set(String::NewFromUtf8(isolate, "method"), String::NewFromUtf8(isolate, ice_glue_request_get_method(req)));
+    info -> Set(String::NewFromUtf8(isolate, "remote_addr"), String::NewFromUtf8(isolate, ice_glue_request_get_remote_addr(req)));
+
+    Local<Object> headers = Object::New(isolate);
+    auto itr_p = ice_glue_request_create_header_iterator(req);
+
+    while(true) {
+        const char *k = ice_glue_request_header_iterator_next(req, itr_p);
+        if(!k) break;
+        const char *v = ice_glue_request_get_header(req, k);
+        if(v) {
+            headers -> Set(String::NewFromUtf8(isolate, k), String::NewFromUtf8(isolate, v));
+        }
+    }
+
+    ice_glue_destroy_header_iterator(itr_p);
+
+    info -> Set(String::NewFromUtf8(isolate, "headers"), headers);
+    args.GetReturnValue().Set(info);
+}
+
+static void get_request_body(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 1 || !args[0] -> IsNumber()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int call_info_id = args[0] -> NumberValue();
+
+    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+        return;
+    }
+
+    Resource call_info = pending_call_info[call_info_id];
+    Resource req = ice_core_borrow_request_from_call_info(call_info);
+
+    u32 body_len = 0;
+    const u8 *body = ice_glue_request_get_body(req, &body_len);
+
+    if(!body || !body_len) {
+        args.GetReturnValue().Set(Null(isolate));
+        return;
+    }
+
+    auto maybe_buf = node::Buffer::Copy(isolate, (const char *) body, body_len);
+    if(maybe_buf.IsEmpty()) {
+        args.GetReturnValue().Set(Null(isolate));
+        return;
+    }
+
+    args.GetReturnValue().Set(maybe_buf.ToLocalChecked());
+}
+
 static void set_response_status(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -227,6 +330,31 @@ static void set_response_status(const FunctionCallbackInfo<Value>& args) {
     ice_glue_response_set_status(resp, status);
 }
 
+static void set_response_body(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsObject()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int resp_id = args[0] -> NumberValue();
+
+    if(resp_id >= pending_responses.size() || !pending_responses[resp_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid response id"));
+        return;
+    }
+
+    Resource resp = pending_responses[resp_id];
+
+    Local<Object> buf_obj = Local<Object>::Cast(args[1]);
+
+    u8 *data = (u8 *) node::Buffer::Data(buf_obj);
+    u32 data_len = node::Buffer::Length(buf_obj);
+
+    ice_glue_response_set_body(resp, data, data_len);
+}
+
 static void init(Local<Object> exports) {
     uv_async_init(uv_default_loop(), &uv_async, node_endpoint_handler);
     ice_glue_register_async_endpoint_handler(async_endpoint_handler);
@@ -235,8 +363,11 @@ static void init(Local<Object> exports) {
     NODE_SET_METHOD(exports, "listen", listen);
     NODE_SET_METHOD(exports, "add_endpoint", add_endpoint);
     NODE_SET_METHOD(exports, "fire_callback", fire_callback);
+    NODE_SET_METHOD(exports, "get_request_info", get_request_info);
+    NODE_SET_METHOD(exports, "get_request_body", get_request_body);
     NODE_SET_METHOD(exports, "create_response", create_response);
     NODE_SET_METHOD(exports, "set_response_status", set_response_status);
+    NODE_SET_METHOD(exports, "set_response_body", set_response_body);
 }
 
 NODE_MODULE(ice_node_core, init)
