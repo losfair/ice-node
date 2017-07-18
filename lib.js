@@ -8,6 +8,7 @@ function Ice(cfg) {
     this.server = null;
     this.routes = [];
     this.middlewares = [];
+    this.templates = {};
     this.config = {
         session_timeout_ms: cfg.session_timeout_ms || 600000,
         session_cookie: cfg.session_cookie || "ICE_SESSION_ID"
@@ -107,6 +108,13 @@ Ice.prototype.use = function (p, handler) {
     });
 }
 
+Ice.prototype.add_template = function(name, content) {
+    if(typeof(name) != "string") throw new Error("Name must be a string");
+    if(typeof(content) != "string") throw new Error("Content must be a string");
+
+    this.templates[name] = content;
+}
+
 Ice.prototype.listen = function (addr) {
     if (typeof (addr) != "string") throw new Error("Address must be a string");
     if (this.server !== null) {
@@ -115,6 +123,15 @@ Ice.prototype.listen = function (addr) {
 
     this.server = core.create_server();
     core.set_session_timeout_ms(this.server, this.config.session_timeout_ms);
+
+    for(const k in this.templates) {
+        try {
+            core.add_template(this.server, k, this.templates[k]);
+        } catch(e) {
+            console.log("Warning: Unable to add template: " + k);
+            delete this.templates[k];
+        }
+    }
 
     let self = this;
 
@@ -263,7 +280,7 @@ Request.prototype.form = function () {
 }
 
 module.exports.Response = Response;
-function Response({ status = 200, headers = {}, cookies = {}, body = "" }) {
+function Response({ status = 200, headers = {}, cookies = {}, body = "", template_name = null, template_params = {} }) {
     // Do strict checks here because errors in Response.send() may cause memory leak & deadlock.
 
     if (typeof (status) != "number" || status < 100 || status >= 600) {
@@ -286,12 +303,25 @@ function Response({ status = 200, headers = {}, cookies = {}, body = "" }) {
     }
     this.cookies = transformed_cookies;
 
-    if (body instanceof Buffer) {
-        this.body = body;
+    this.body = null;
+    this.template_name = null;
+
+    if(body) {
+        if (body instanceof Buffer) {
+            this.body = body;
+        } else {
+            this.body = Buffer.from(body);
+        }
+        if (!this.body) throw new Error("Invalid body");
+    } else if(typeof(template_name) == "string") {
+        this.template_name = template_name;
+        if(!template_params || typeof(template_params) != "object") {
+            throw new Error("Invalid template params");
+        }
+        this.template_params = template_params;
     } else {
-        this.body = Buffer.from(body);
+        throw new Error("No valid body or template provided");
     }
-    if (!this.body) throw new Error("Invalid body");
 
     Object.freeze(this);
 }
@@ -314,7 +344,15 @@ Response.prototype.send = function (server, call_info) {
     if(session_id) {
         core.set_response_cookie(resp, server.config.session_cookie, session_id);
     }
-    core.set_response_body(resp, this.body);
+    if(this.body) {
+        core.set_response_body(resp, this.body);
+    } else {
+        try {
+            core.render_template(call_info, resp, this.template_name, JSON.stringify(this.template_params));
+        } catch(e) {
+            console.log(e);
+        }
+    }
     core.fire_callback(call_info, resp);
 };
 

@@ -13,6 +13,7 @@ extern "C" {
     Resource ice_server_router_add_endpoint(Resource handle, const char *p);
     void ice_server_set_static_dir(Resource handle, const char *d);
     void ice_server_set_session_timeout_ms(Resource handle, u64 t);
+    bool ice_server_add_template(Resource handle, const char *name, const char *content);
 
     const char * ice_glue_request_get_remote_addr(Resource req);
     const char * ice_glue_request_get_method(Resource req);
@@ -40,6 +41,9 @@ extern "C" {
     const u8 * ice_glue_request_get_body(Resource t, u32 *len_out);
 
     void ice_glue_response_set_status(Resource t, u16 status);
+
+    char * ice_glue_request_render_template_to_owned(Resource t, const char *name, const char *data);
+    bool ice_glue_response_consume_rendered_template(Resource t, char *output);
 
     void ice_glue_register_async_endpoint_handler(AsyncEndpointHandler);
 

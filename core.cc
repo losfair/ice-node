@@ -79,7 +79,34 @@ static void set_session_timeout_ms(const FunctionCallbackInfo<Value>& args) {
 
     unsigned int timeout = args[1] -> NumberValue();
     ice_server_set_session_timeout_ms(server, timeout);
-}   
+}
+
+static void add_template(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 3 || !args[0] -> IsNumber() || !args[1] -> IsString() || !args[2] -> IsString()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int id = args[0] -> NumberValue();
+
+    if(id >= servers.size()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+        return;
+    }
+
+    Resource server = servers[id];
+
+    String::Utf8Value _name(args[1] -> ToString());
+    String::Utf8Value _content(args[2] -> ToString());
+
+    bool ret = ice_server_add_template(server, *_name, *_content);
+    if(!ret) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Unable to add template"));
+        return;
+    }
+}
 
 static void listen(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
@@ -547,12 +574,53 @@ static void set_response_body(const FunctionCallbackInfo<Value>& args) {
     ice_glue_response_set_body(resp, data, data_len);
 }
 
+static void render_template(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 4 || !args[0] -> IsNumber() || !args[1] -> IsNumber() || !args[2] -> IsString() || !args[3] -> IsString()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int call_info_id = args[0] -> NumberValue();
+
+    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+        return;
+    }
+
+    Resource call_info = pending_call_info[call_info_id];
+    Resource req = ice_core_borrow_request_from_call_info(call_info);
+
+    unsigned int resp_id = args[1] -> NumberValue();
+
+    if(resp_id >= pending_responses.size() || !pending_responses[resp_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid response id"));
+        return;
+    }
+
+    Resource resp = pending_responses[resp_id];
+
+    String::Utf8Value _name(args[2] -> ToString());
+    String::Utf8Value _data(args[3] -> ToString());
+
+    bool ret = ice_glue_response_consume_rendered_template(
+        resp,
+        ice_glue_request_render_template_to_owned(req, *_name, *_data)
+    );
+    if(!ret) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Unable to render template"));
+        return;
+    }
+}
+
 static void init(Local<Object> exports) {
     uv_async_init(uv_default_loop(), &uv_async, node_endpoint_handler);
     ice_glue_register_async_endpoint_handler(async_endpoint_handler);
 
     NODE_SET_METHOD(exports, "create_server", create_server);
     NODE_SET_METHOD(exports, "set_session_timeout_ms", set_session_timeout_ms);
+    NODE_SET_METHOD(exports, "add_template", add_template);
     NODE_SET_METHOD(exports, "listen", listen);
     NODE_SET_METHOD(exports, "add_endpoint", add_endpoint);
     NODE_SET_METHOD(exports, "fire_callback", fire_callback);
@@ -567,6 +635,7 @@ static void init(Local<Object> exports) {
     NODE_SET_METHOD(exports, "set_response_header", set_response_header);
     NODE_SET_METHOD(exports, "set_response_cookie", set_response_cookie);
     NODE_SET_METHOD(exports, "set_response_body", set_response_body);
+    NODE_SET_METHOD(exports, "render_template", render_template);
 }
 
 NODE_MODULE(ice_node_core, init)

@@ -68,4 +68,17 @@ app.get("/two_params/:a/:b", req => {
     return req.params.a + " " + req.params.b;
 });
 
+let test_tpl = app.add_template("test.html", `Hello world!
+{{ date }}
+`);
+
+app.get("/template/render", req => {
+    return new lib.Response({
+        template_name: "test.html",
+        template_params: {
+            date: new Date().toLocaleString()
+        }
+    });
+});
+
 app.listen("127.0.0.1:1122");
