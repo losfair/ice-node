@@ -29,4 +29,43 @@ app.route(["GET", "POST"], "/time", req => {
     });
 });
 
+app.get("/session", req => {
+    req.init_session();
+    let count = req.session.count || "0";
+    req.session.count = "" + (parseInt(count) + 1);
+    return count.toString();
+});
+
+app.post("/form_to_json", req => {
+    return lib.Response.json(req.form());
+});
+
+app.get("/cookies", req => {
+    return new lib.Response({
+        cookies: {
+            a: 1,
+            b: 2
+        }
+    });
+});
+
+app.get("/delay/:time", async req => {
+    await sleep(parseInt(req.params.time));
+    return "OK";
+});
+
+app.get("/exception/sync", req => {
+    throw new Error("Sync exception");
+});
+
+app.get("/exception/async/:delay", async req => {
+    let delay = parseInt(req.params.delay);
+    if(delay) await sleep(delay);
+    throw new Error("Async exception");
+});
+
+app.get("/two_params/:a/:b", req => {
+    return req.params.a + " " + req.params.b;
+});
+
 app.listen("127.0.0.1:1122");

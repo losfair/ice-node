@@ -12,7 +12,7 @@
 using namespace v8;
 
 struct AsyncCallbackInfo {
-    Persistent<Function, CopyablePersistentTraits<Function>> *fn;
+    Persistent<Function> *fn;
     Resource call_info;
 
     AsyncCallbackInfo() {
@@ -20,16 +20,16 @@ struct AsyncCallbackInfo {
         call_info = NULL;
     }
 
-    AsyncCallbackInfo(Persistent<Function, CopyablePersistentTraits<Function>> *_fn, Resource _call_info) {
+    AsyncCallbackInfo(Persistent<Function> *_fn, Resource _call_info) {
         fn = _fn;
         call_info = _call_info;
     }
 };
 
 struct EndpointHandlerInfo {
-    Persistent<Function, CopyablePersistentTraits<Function>> *fn;
+    Persistent<Function> *fn;
 
-    EndpointHandlerInfo(Persistent<Function, CopyablePersistentTraits<Function>> *_fn) {
+    EndpointHandlerInfo(Persistent<Function> *_fn) {
         fn = _fn;
     }
 
@@ -155,7 +155,7 @@ static void add_endpoint(const FunctionCallbackInfo<Value>& args) {
     }
 
     Local<Function> _cb = Local<Function>::Cast(args[2]);
-    auto cb = new Persistent<Function, CopyablePersistentTraits<Function>>(isolate, _cb);
+    auto cb = new Persistent<Function>(isolate, _cb);
 
     endpoint_handlers[ep_id] = new EndpointHandlerInfo(cb);
 }
@@ -499,6 +499,29 @@ static void set_response_header(const FunctionCallbackInfo<Value>& args) {
     ice_glue_response_add_header(resp, *_k, *_v);
 }
 
+static void set_response_cookie(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 3 || !args[0] -> IsNumber() || !args[1] -> IsString() || !args[2] -> IsString()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int resp_id = args[0] -> NumberValue();
+
+    if(resp_id >= pending_responses.size() || !pending_responses[resp_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid response id"));
+        return;
+    }
+
+    Resource resp = pending_responses[resp_id];
+
+    String::Utf8Value _k(args[1] -> ToString());
+    String::Utf8Value _v(args[2] -> ToString());
+
+    ice_glue_response_set_cookie(resp, *_k, *_v, NULL);
+}
+
 static void set_response_body(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -542,6 +565,7 @@ static void init(Local<Object> exports) {
     NODE_SET_METHOD(exports, "create_response", create_response);
     NODE_SET_METHOD(exports, "set_response_status", set_response_status);
     NODE_SET_METHOD(exports, "set_response_header", set_response_header);
+    NODE_SET_METHOD(exports, "set_response_cookie", set_response_cookie);
     NODE_SET_METHOD(exports, "set_response_body", set_response_body);
 }
 

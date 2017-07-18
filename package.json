@@ -2,7 +2,7 @@
   "name": "ice-node",
   "version": "0.1.0",
   "description": "Bindings for the Ice Web Framework",
-  "main": "index.js",
+  "main": "lib.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "install": "node-gyp rebuild"
@@ -24,5 +24,8 @@
   "bugs": {
     "url": "https://github.com/losfair/ice-node/issues"
   },
-  "homepage": "https://github.com/losfair/ice-node#readme"
+  "homepage": "https://github.com/losfair/ice-node#readme",
+  "dependencies": {
+    "cookie": "^0.3.1"
+  }
 }

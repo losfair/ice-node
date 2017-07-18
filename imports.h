@@ -33,6 +33,7 @@ extern "C" {
 
     void ice_glue_response_add_header(Resource t, const char *k, const char *v);
     const char * ice_glue_response_get_header(Resource t, const char *k);
+    void ice_glue_response_set_cookie(Resource t, const char *k, const char *v, const char *options);
 
     Resource ice_glue_create_response();
     void ice_glue_response_set_body(Resource t, const u8 *body, u32 len);
