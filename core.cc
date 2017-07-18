@@ -60,6 +60,27 @@ static void create_server(const FunctionCallbackInfo<Value>& args) {
     args.GetReturnValue().Set(Number::New(isolate, id));
 }
 
+static void set_session_timeout_ms(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsNumber()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int id = args[0] -> NumberValue();
+
+    if(id >= servers.size()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+        return;
+    }
+
+    Resource server = servers[id];
+
+    unsigned int timeout = args[1] -> NumberValue();
+    ice_server_set_session_timeout_ms(server, timeout);
+}   
+
 static void listen(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -316,6 +337,125 @@ static void get_request_body(const FunctionCallbackInfo<Value>& args) {
     args.GetReturnValue().Set(maybe_buf.ToLocalChecked());
 }
 
+static void init_request_session(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 1 || !args[0] -> IsNumber()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int call_info_id = args[0] -> NumberValue();
+
+    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+        return;
+    }
+
+    Resource call_info = pending_call_info[call_info_id];
+    Resource req = ice_core_borrow_request_from_call_info(call_info);
+
+    bool load_ok = false;
+
+    if(args.Length() >= 2) {
+        if(!args[1] -> IsString()) {
+            isolate -> ThrowException(String::NewFromUtf8(isolate, "Session id must be a string"));
+            return;
+        }
+        String::Utf8Value _session_id(args[1] -> ToString());
+        load_ok = ice_glue_request_load_session(req, *_session_id);
+    }
+
+    if(!load_ok) {
+        ice_glue_request_create_session(req);
+    }
+}
+
+static void get_request_session_id(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 1 || !args[0] -> IsNumber()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int call_info_id = args[0] -> NumberValue();
+
+    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+        return;
+    }
+
+    Resource call_info = pending_call_info[call_info_id];
+    Resource req = ice_core_borrow_request_from_call_info(call_info);
+
+    const char *id = ice_glue_request_get_session_id(req);
+    if(!id) {
+        args.GetReturnValue().Set(Null(isolate));
+        return;
+    }
+
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, id));
+}
+
+static void get_request_session_item(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsString()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int call_info_id = args[0] -> NumberValue();
+
+    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+        return;
+    }
+
+    Resource call_info = pending_call_info[call_info_id];
+    Resource req = ice_core_borrow_request_from_call_info(call_info);
+
+    String::Utf8Value _key(args[1] -> ToString());
+    const char *value = ice_glue_request_get_session_item(req, *_key);
+    if(!value) {
+        args.GetReturnValue().Set(Null(isolate));
+        return;
+    }
+
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, value));
+}
+
+static void set_request_session_item(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 3 || !args[0] -> IsNumber() || !args[1] -> IsString()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int call_info_id = args[0] -> NumberValue();
+
+    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+        return;
+    }
+
+    Resource call_info = pending_call_info[call_info_id];
+    Resource req = ice_core_borrow_request_from_call_info(call_info);
+
+    String::Utf8Value _key(args[1] -> ToString());
+
+    if(args[2] -> IsString()) {
+        String::Utf8Value _value(args[2] -> ToString());
+        ice_glue_request_set_session_item(req, *_key, *_value);
+    } else if(args[2] -> IsNull()) {
+        ice_glue_request_remove_session_item(req, *_key);
+    } else {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid value"));
+    }
+}
+
 static void set_response_status(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -389,11 +529,16 @@ static void init(Local<Object> exports) {
     ice_glue_register_async_endpoint_handler(async_endpoint_handler);
 
     NODE_SET_METHOD(exports, "create_server", create_server);
+    NODE_SET_METHOD(exports, "set_session_timeout_ms", set_session_timeout_ms);
     NODE_SET_METHOD(exports, "listen", listen);
     NODE_SET_METHOD(exports, "add_endpoint", add_endpoint);
     NODE_SET_METHOD(exports, "fire_callback", fire_callback);
     NODE_SET_METHOD(exports, "get_request_info", get_request_info);
     NODE_SET_METHOD(exports, "get_request_body", get_request_body);
+    NODE_SET_METHOD(exports, "init_request_session", init_request_session);
+    NODE_SET_METHOD(exports, "get_request_session_id", get_request_session_id);
+    NODE_SET_METHOD(exports, "get_request_session_item", get_request_session_item);
+    NODE_SET_METHOD(exports, "set_request_session_item", set_request_session_item);
     NODE_SET_METHOD(exports, "create_response", create_response);
     NODE_SET_METHOD(exports, "set_response_status", set_response_status);
     NODE_SET_METHOD(exports, "set_response_header", set_response_header);
