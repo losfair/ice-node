@@ -23,7 +23,7 @@ Ice-node makes use of ES6 and later features like async functions to provide a b
 A simple server using Ice-node looks like this:
 
     const ice = require("ice-node");
-    const app = ice.Ice();
+    const app = new ice.Ice();
 
     app.get("/", req => "Hello world!");
 
