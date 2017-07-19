@@ -4,10 +4,10 @@ before_install:
 node_js:
   - "7"
 script:
-  - LIBRARY_PATH=/tmp/ice-node-lib npm install
+  - npm install
   - npm test
 matrix:
   include:
     - os: linux
       dist: trusty
-      env: LD_LIBRARY_PATH=/tmp/ice-node-lib
+      env: LD_LIBRARY_PATH=/tmp/ice-node-lib LIBRARY_PATH=/tmp/ice-node-lib
