@@ -4,7 +4,7 @@
   "description": "Bindings for the Ice Web Framework",
   "main": "lib.js",
   "scripts": {
-    "test": "node ./auto_tests/run.js",
+    "test": "./run_tests.sh",
     "install": "node-gyp rebuild"
   },
   "repository": {
