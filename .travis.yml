@@ -1,0 +1,10 @@
+language: node_js
+node_js:
+  - "7"
+script:
+  - npm install
+  - npm test
+matrix:
+  include:
+    - os: linux
+      dist: trusty
