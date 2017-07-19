@@ -385,67 +385,6 @@ static void get_request_body(const FunctionCallbackInfo<Value>& args) {
     args.GetReturnValue().Set(maybe_buf.ToLocalChecked());
 }
 
-static void init_request_session(const FunctionCallbackInfo<Value>& args) {
-    Isolate* isolate = args.GetIsolate();
-
-    if(args.Length() < 1 || !args[0] -> IsNumber()) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
-        return;
-    }
-
-    unsigned int call_info_id = args[0] -> NumberValue();
-
-    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
-        return;
-    }
-
-    Resource call_info = pending_call_info[call_info_id];
-    Resource req = ice_core_borrow_request_from_call_info(call_info);
-
-    bool load_ok = false;
-
-    if(args.Length() >= 2) {
-        if(!args[1] -> IsString()) {
-            isolate -> ThrowException(String::NewFromUtf8(isolate, "Session id must be a string"));
-            return;
-        }
-        String::Utf8Value _session_id(args[1] -> ToString());
-        load_ok = ice_glue_request_load_session(req, *_session_id);
-    }
-
-    if(!load_ok) {
-        ice_glue_request_create_session(req);
-    }
-}
-
-static void get_request_session_id(const FunctionCallbackInfo<Value>& args) {
-    Isolate* isolate = args.GetIsolate();
-
-    if(args.Length() < 1 || !args[0] -> IsNumber()) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
-        return;
-    }
-
-    unsigned int call_info_id = args[0] -> NumberValue();
-
-    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
-        return;
-    }
-
-    Resource call_info = pending_call_info[call_info_id];
-    Resource req = ice_core_borrow_request_from_call_info(call_info);
-
-    const char *id = ice_glue_request_get_session_id(req);
-    if(!id) {
-        args.GetReturnValue().Set(Null(isolate));
-        return;
-    }
-
-    args.GetReturnValue().Set(String::NewFromUtf8(isolate, id));
-}
-
 static void get_request_session_item(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -672,8 +611,6 @@ static void init(Local<Object> exports) {
     NODE_SET_METHOD(exports, "fire_callback", fire_callback);
     NODE_SET_METHOD(exports, "get_request_info", get_request_info);
     NODE_SET_METHOD(exports, "get_request_body", get_request_body);
-    //NODE_SET_METHOD(exports, "init_request_session", init_request_session);
-    //NODE_SET_METHOD(exports, "get_request_session_id", get_request_session_id);
     NODE_SET_METHOD(exports, "get_request_session_item", get_request_session_item);
     NODE_SET_METHOD(exports, "set_request_session_item", set_request_session_item);
     NODE_SET_METHOD(exports, "get_request_cookie", get_request_cookie);
