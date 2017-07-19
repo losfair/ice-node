@@ -43,4 +43,63 @@ You can quickly install a supported version of node with your favorite version m
 
 # Application
 
+With `const app = new ice.Ice()`, you creates an Ice-node **Application** - an object describing how requests will be handled and how your data will be presented to users,
+containing arrays of `routes`, `middlewares`, key-value mappings of `templates`, and a `config` object.
 
+Every middleware and routing endpoint will receive a `Request` object once reached, providing access to details of the request, including URL, params, headers, cookies, remote address, method and body.
+
+A simple app that responds with the `text` param:
+
+    const ice = require("ice-node");
+    const app = new ice.Ice();
+
+    app.get("/:text", req => req.params.text);
+
+    app.listen("127.0.0.1:3536");
+
+### Middlewares and Endpoints
+
+Similar to Ice Core, Ice-node is targeted at **endpoint**s, the last handler requests may reach.
+
+Compared to some other node web frameworks targeting middlewares, our design makes it easier to optimize the performance and simplify user logics.
+
+Due to the way Ice-node handle endpoints and middlewares, only requests hitting an endpoint will be processed by middlewares. For example,
+
+    app.use("/", req => console.log(req));
+    app.get("/hello_world", req => "Hello world!");
+
+will:
+
+1. GET `/hello_world` => Log the request and respond with "`Hello world!`"
+2. POST `/hello_world` => Log the request and respond with 405 error
+3. GET `/test` => No log of the request object, respond with 404 Not Found
+
+because the core router can find a path to the endpoint `/hello_world` but not to `/test`.
+
+### The Request object
+
+The Request object, which is passed to middlewares and endpoints, contains the following fields:
+
+- `headers` (object): Key-value mappings of request headers, with all keys in lower case.
+- `uri` (string): The full URI of the request.
+- `url` (string): Request URL.
+- `remote_addr` (string): Remote address.
+- `method` (string): Request method, in upper case (`GET`, `POST` etc.) .
+- `host` (string): Alias for headers.host.
+- `cookies` (proxied object): Key-value mappings of cookies in the `Cookie` header.
+- `session` (proxied object): Key-value read and write access to the session of the request.
+- `param` (proxied object): Key-value mappings of params in request URL.
+
+All of the proxied object do lazy load, bringing zero overhead if you don't use them.
+
+### Return values and exceptions
+
+All middlewares and endpoints may throw exceptions, terminating the current request.
+
+For middlewares, a Response object as exception will be sent to the client, and all other exceptions lead to a 500 error.
+
+For endpoints, any exceptions thrown lead to a 500 error.
+
+Only endpoints' return values are processed. If it is a Response object, it will be sent to the client. Otherwise, Ice-node will try to construct a Response object from it.
+
+### Async functions as endpoint handlers
