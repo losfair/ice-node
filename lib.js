@@ -1,5 +1,4 @@
 const core = require("./build/Release/ice_node_core");
-const cookie = require("cookie");
 
 module.exports.Ice = Ice;
 function Ice(cfg) {

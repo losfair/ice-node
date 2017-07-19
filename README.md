@@ -1,5 +1,7 @@
 Ice-node is a high-performance framework for writing web applications, based on [Ice Core](https://github.com/losfair/IceCore).
 
+[![Build Status](https://travis-ci.org/losfair/ice-node.svg?branch=master)](https://travis-ci.org/losfair/ice-node)
+
 # Why Ice-node ?
 
 ### Fast

@@ -6,7 +6,7 @@
         "core.cc"
       ],
       "libraries": [
-        "-L.. -lice_core"
+        "-lice_core"
       ]
     }
   ]

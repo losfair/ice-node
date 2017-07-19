@@ -1,3 +1,4 @@
 build/
 *.so
 node_modules/
+*.a
