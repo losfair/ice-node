@@ -108,6 +108,27 @@ static void add_template(const FunctionCallbackInfo<Value>& args) {
     }
 }
 
+static void set_session_cookie_name(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsString()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int id = args[0] -> NumberValue();
+
+    if(id >= servers.size()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+        return;
+    }
+
+    Resource server = servers[id];
+
+    String::Utf8Value _name(args[1] -> ToString());
+    ice_server_set_session_cookie_name(server, *_name);
+}
+
 static void listen(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -483,6 +504,30 @@ static void set_request_session_item(const FunctionCallbackInfo<Value>& args) {
     }
 }
 
+static void get_request_cookie(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsString()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int call_info_id = args[0] -> NumberValue();
+
+    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+        return;
+    }
+
+    Resource call_info = pending_call_info[call_info_id];
+    Resource req = ice_core_borrow_request_from_call_info(call_info);
+
+    String::Utf8Value _key(args[1] -> ToString());
+    const char *value = ice_glue_request_get_cookie(req, *_key);
+
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, value));
+}
+
 static void set_response_status(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -621,15 +666,17 @@ static void init(Local<Object> exports) {
     NODE_SET_METHOD(exports, "create_server", create_server);
     NODE_SET_METHOD(exports, "set_session_timeout_ms", set_session_timeout_ms);
     NODE_SET_METHOD(exports, "add_template", add_template);
+    NODE_SET_METHOD(exports, "set_session_cookie_name", set_session_cookie_name);
     NODE_SET_METHOD(exports, "listen", listen);
     NODE_SET_METHOD(exports, "add_endpoint", add_endpoint);
     NODE_SET_METHOD(exports, "fire_callback", fire_callback);
     NODE_SET_METHOD(exports, "get_request_info", get_request_info);
     NODE_SET_METHOD(exports, "get_request_body", get_request_body);
-    NODE_SET_METHOD(exports, "init_request_session", init_request_session);
-    NODE_SET_METHOD(exports, "get_request_session_id", get_request_session_id);
+    //NODE_SET_METHOD(exports, "init_request_session", init_request_session);
+    //NODE_SET_METHOD(exports, "get_request_session_id", get_request_session_id);
     NODE_SET_METHOD(exports, "get_request_session_item", get_request_session_item);
     NODE_SET_METHOD(exports, "set_request_session_item", set_request_session_item);
+    NODE_SET_METHOD(exports, "get_request_cookie", get_request_cookie);
     NODE_SET_METHOD(exports, "create_response", create_response);
     NODE_SET_METHOD(exports, "set_response_status", set_response_status);
     NODE_SET_METHOD(exports, "set_response_header", set_response_header);

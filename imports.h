@@ -12,6 +12,7 @@ extern "C" {
     Resource ice_server_listen(Resource handle, const char *addr);
     Resource ice_server_router_add_endpoint(Resource handle, const char *p);
     void ice_server_set_static_dir(Resource handle, const char *d);
+    void ice_server_set_session_cookie_name(Resource handle, const char *name);
     void ice_server_set_session_timeout_ms(Resource handle, u64 t);
     bool ice_server_add_template(Resource handle, const char *name, const char *content);
 
@@ -27,6 +28,8 @@ extern "C" {
 
     void ice_glue_request_add_header(Resource t, const char *k, const char *v);
     const char * ice_glue_request_get_header(Resource t, const char *k);
+
+    const char * ice_glue_request_get_cookie(Resource t, const char *k);
 
     Resource ice_glue_request_create_header_iterator(Resource t);
     const char * ice_glue_request_header_iterator_next(Resource t, Resource itr_p);

@@ -1,6 +1,8 @@
 const lib = require("./lib.js");
 
-let app = new lib.Ice();
+let app = new lib.Ice({
+    session_timeout_ms: 10000
+});
 
 function sleep(ms) {
     return new Promise(cb => setTimeout(() => cb(), ms));
@@ -29,8 +31,8 @@ app.route(["GET", "POST"], "/time", req => {
     });
 });
 
+app.use("/session", new lib.Flag("init_session"));
 app.get("/session", req => {
-    req.init_session();
     let count = req.session.count || "0";
     req.session.count = "" + (parseInt(count) + 1);
     return count.toString();

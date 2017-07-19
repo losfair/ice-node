@@ -100,7 +100,7 @@ Ice.prototype.delete = function (p, handler) {
 
 Ice.prototype.use = function (p, handler) {
     if (typeof (p) != "string") throw new Error("Prefix must be a string");
-    if (typeof (handler) != "function") throw new Error("Handler must be a function");
+    if (typeof (handler) != "function" && !(handler instanceof Flag)) throw new Error("Handler must be a function or flag");
 
     this.middlewares.push({
         prefix: p,
@@ -123,6 +123,7 @@ Ice.prototype.listen = function (addr) {
 
     this.server = core.create_server();
     core.set_session_timeout_ms(this.server, this.config.session_timeout_ms);
+    core.set_session_cookie_name(this.server, this.config.session_cookie);
 
     for(const k in this.templates) {
         try {
@@ -142,6 +143,12 @@ Ice.prototype.listen = function (addr) {
         }
 
         let mws = this.middlewares.filter(v => rt.path.startsWith(v.prefix));
+        let flag_mws = mws.filter(v => v.handler instanceof Flag);
+        mws = mws.filter(v => typeof(v.handler) == "function");
+
+        for(const f of flag_mws) {
+            flags.push(f.handler.name);
+        }
 
         core.add_endpoint(this.server, rt.path, call_info => {
             let req = new Request(self, rt, call_info);
@@ -181,7 +188,6 @@ function Request(server, route, call_info) {
     this.server = server;
     this.route = route;
     this.call_info = call_info;
-    this.session_initialized = false;
 
     let req_info = core.get_request_info(call_info);
     this.headers = req_info.headers;
@@ -197,20 +203,15 @@ function Request(server, route, call_info) {
         set: (t, k, v) => core.set_request_session_item(this.call_info, k, v)
     });
 
-    this._cookies = null;
+    this._cookies = {};
     this._params = null;
 
     let self = this;
 
     this.cookies = new Proxy({}, {
         get: (t, k) => {
-            if(!self._cookies) {
-                try {
-                    self._cookies = cookie.parse(self.headers["cookie"]);
-                    if(!self._cookies) throw null;
-                } catch(e) {
-                    self._cookies = {};
-                }
+            if(!self._cookies[k]) {
+                self._cookies[k] = core.get_request_cookie(self.call_info, k);
             }
             return self._cookies[k];
         }
@@ -234,22 +235,6 @@ function Request(server, route, call_info) {
             return self._params[k];
         }
     });
-}
-
-Request.prototype.init_session = function () {
-    if(this.session_initialized) {
-        return;
-    }
-
-    let sc_name = this.server.config.session_cookie;
-    let id = this.cookies[sc_name];
-
-    if (id) {
-        core.init_request_session(this.call_info, id);
-    } else {
-        core.init_request_session(this.call_info);
-    }
-    this.session_initialized = true;
 }
 
 Request.prototype.body = function () {
@@ -340,10 +325,6 @@ Response.prototype.send = function (server, call_info) {
     for (const k in this.cookies) {
         core.set_response_cookie(resp, k, this.cookies[k]);
     }
-    let session_id = core.get_request_session_id(call_info);
-    if(session_id) {
-        core.set_response_cookie(resp, server.config.session_cookie, session_id);
-    }
     if(this.body) {
         core.set_response_body(resp, this.body);
     } else {
@@ -363,4 +344,13 @@ Response.json = function (data) {
         },
         body: JSON.stringify(data)
     });
+}
+
+module.exports.Flag = Flag;
+function Flag(name) {
+    if(typeof(name) != "string") {
+        throw new Error("Flag name must be a string");
+    }
+    this.name = name;
+    Object.freeze(this);
 }
