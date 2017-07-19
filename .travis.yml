@@ -13,4 +13,4 @@ matrix:
       env: LD_LIBRARY_PATH=/tmp/ice-node-lib LIBRARY_PATH=/tmp/ice-node-lib
     - os: osx
       osx_image: xcode7.3
-      env: DYLD_LIBRARY_PATH=$HOME/ice-node-lib LIBRARY_PATH=$HOME/ice-node-lib
+      env: DYLD_LIBRARY_PATH=$HOME/ice-node-lib LD_LIBRARY_PATH=$HOME/ice-node-lib LIBRARY_PATH=$HOME/ice-node-lib
