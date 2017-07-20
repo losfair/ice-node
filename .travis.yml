@@ -5,7 +5,7 @@ node_js:
   - "7"
 script:
   - npm install
-  - npm test
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then npm test; fi
 matrix:
   include:
     - os: linux
