@@ -98,14 +98,14 @@ Ice-node 需要 Node v7.6.0 或更高版本，和 Ice Core 核心库。
 
 由于 Ice-node 处理中间件和端点的方式，只有命中端点的请求会触发分发，并被对应的中间件处理。例如：
 
-    app.use("/", req => console.log(req));
+    app.use("/", req => console.log(req.url));
     app.get("/hello_world", req => "Hello world!");
 
 这段代码会执行以下行为：
 
-1. GET `/hello_world` => 输出请求对象，响应 "`Hello world`"
-2. POST `/hello_world` => 输出请求对象，响应 405 错误
-3. GET `/text` => 不输出请求对象，响应 404 错误
+1. GET `/hello_world` => 输出请求的 URL，响应 "`Hello world`"
+2. POST `/hello_world` => 输出请求的 URL，响应 405 错误
+3. GET `/text` => 不输出，响应 404 错误
 
 因为核心路由组件能找到端点为 `/hello_world` 的路由，但不能找到端点为 `/test` 的路由。
 

@@ -100,14 +100,14 @@ Compared to some other node web frameworks targeting middlewares, our design mak
 
 Due to the way Ice-node handle endpoints and middlewares, only requests hitting an endpoint will be processed by middlewares. For example,
 
-    app.use("/", req => console.log(req));
+    app.use("/", req => console.log(req.url));
     app.get("/hello_world", req => "Hello world!");
 
 will:
 
-1. GET `/hello_world` => Log the request and respond with "`Hello world!`"
-2. POST `/hello_world` => Log the request and respond with 405 error
-3. GET `/test` => No log of the request object, respond with 404 Not Found
+1. GET `/hello_world` => Log the request URL and respond with "`Hello world!`"
+2. POST `/hello_world` => Log the request URL and respond with 405 error
+3. GET `/test` => No log, respond with 404 Not Found
 
 because the core router can find a path to the endpoint `/hello_world` but not to `/test`.
 
