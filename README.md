@@ -144,6 +144,27 @@ To set session timeout, pass `session_timeout_ms` parameter when creating the ap
 
     const app = new ice.Ice({ session_timeout_ms: 1800000 });
 
+To access the session, use `req.session` object:
+
+    app.get("/user/logout", req => {
+        if(req.session.logged_in == "true") {
+            req.session.logged_in = "false";
+            return "OK";
+        } else {
+            return "Not logged in";
+        }
+    });
+
+To remove a session item, set it to `null`.
+
+Note that all session keys and values must be strings.
+
 # Server
 
 By `app.listen("127.0.0.1:3535")`, Ice-node builds up handlers, initializes the server instance and fires it up.
+
+# Bugs & improvements
+
+Both Ice Core and Ice-node are still in early development, and contributions are welcome.
+
+Use [Issues](https://github.com/losfair/ice-node/issues) and pull requests to let us know your ideas!
