@@ -16,6 +16,17 @@ When serving the "Hello world!" text, Ice-node is about 10% faster than the raw 
 
 [Raw Results](https://gist.github.com/losfair/066b04978d6a5b27418d85a6305ecd5c)
 
+For practical applications that do database queries and some logic, Ice-node is also at least 30% faster than Express.
+
+We wrote a [test application](https://github.com/losfair/ice-node-perf-tests) that simulates some common API services like login and data fetching and do MongoDB queries when processing requests,
+and fire up 500 concurrent clients, each doing 101 requests:
+
+##### Time for 500 * 101 requests, lower is better:
+
+![Benchmark Result](http://i.imgur.com/OIEUPOr.png)
+
+[Raw Results](https://gist.github.com/losfair/4d219e98b2e207ad4985b75304321292)
+
 ### Easy to use
 
 Ice-node makes use of ES6 and later features like async functions to provide a better coding experience for developers.
