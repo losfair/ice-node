@@ -1,10 +1,14 @@
 const rp = require("request-promise");
 const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
 
 const REMOTE = "http://127.0.0.1:5329";
 
 let template_param = "Hello";
 let expected_rendered_template = "<p>Template OK: Hello</p>";
+
+let server_code = fs.readFileSync(path.join(__dirname, "server.js"));
 
 async function run() {
     console.log("Testing GET (Sync)");
@@ -99,8 +103,11 @@ async function run() {
     }
     if(!ok) throw new Error("Exception not handled properly");
 
-    console.log("Testing template rendering")
+    console.log("Testing template rendering");
     assert((await rp.get(REMOTE + "/template/" + template_param)) == expected_rendered_template);
+
+    console.log("Testing static file serving");
+    assert((await rp.get(REMOTE + "/code")) == server_code);
 
     console.log("Everything OK");
     process.exit(0);

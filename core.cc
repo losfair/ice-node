@@ -558,6 +558,28 @@ static void set_response_body(const FunctionCallbackInfo<Value>& args) {
     ice_glue_response_set_body(resp, data, data_len);
 }
 
+static void set_response_file(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsString()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int resp_id = args[0] -> NumberValue();
+
+    if(resp_id >= pending_responses.size() || !pending_responses[resp_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid response id"));
+        return;
+    }
+
+    Resource resp = pending_responses[resp_id];
+
+    String::Utf8Value _path(args[1] -> ToString());
+
+    ice_glue_response_set_file(resp, *_path);
+}
+
 static void render_template(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -619,6 +641,7 @@ static void init(Local<Object> exports) {
     NODE_SET_METHOD(exports, "set_response_header", set_response_header);
     NODE_SET_METHOD(exports, "set_response_cookie", set_response_cookie);
     NODE_SET_METHOD(exports, "set_response_body", set_response_body);
+    NODE_SET_METHOD(exports, "set_response_file", set_response_file);
     NODE_SET_METHOD(exports, "render_template", render_template);
 }
 

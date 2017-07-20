@@ -42,6 +42,7 @@ extern "C" {
     Resource ice_glue_create_response();
     void ice_glue_response_set_body(Resource t, const u8 *body, u32 len);
     const u8 * ice_glue_request_get_body(Resource t, u32 *len_out);
+    void ice_glue_response_set_file(Resource t, const char *path);
 
     void ice_glue_response_set_status(Resource t, u16 status);
 

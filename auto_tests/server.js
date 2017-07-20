@@ -1,4 +1,5 @@
 const lib = require("../lib.js");
+const path = require("path");
 
 let app = new lib.Ice();
 
@@ -10,6 +11,8 @@ let template = `
 <p>Template OK: {{ param }}</p>
 `.trim();
 app.add_template("test.html", template);
+
+let my_path = path.join(__dirname, "server.js");
 
 app.get("/get/sync", req => {
     return "OK";
@@ -66,5 +69,7 @@ app.get("/template/:param", req => {
         }
     });
 });
+
+app.get("/code", req => lib.Response.file(my_path));
 
 app.listen("127.0.0.1:5329");

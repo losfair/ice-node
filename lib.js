@@ -2,7 +2,7 @@ const core = require("./build/Release/ice_node_core");
 
 module.exports.Ice = Ice;
 function Ice(cfg) {
-    if(!cfg) cfg = {};
+    if (!cfg) cfg = {};
 
     this.server = null;
     this.routes = [];
@@ -107,9 +107,9 @@ Ice.prototype.use = function (p, handler) {
     });
 }
 
-Ice.prototype.add_template = function(name, content) {
-    if(typeof(name) != "string") throw new Error("Name must be a string");
-    if(typeof(content) != "string") throw new Error("Content must be a string");
+Ice.prototype.add_template = function (name, content) {
+    if (typeof (name) != "string") throw new Error("Name must be a string");
+    if (typeof (content) != "string") throw new Error("Content must be a string");
 
     this.templates[name] = content;
 }
@@ -124,10 +124,10 @@ Ice.prototype.listen = function (addr) {
     core.set_session_timeout_ms(this.server, this.config.session_timeout_ms);
     core.set_session_cookie_name(this.server, this.config.session_cookie);
 
-    for(const k in this.templates) {
+    for (const k in this.templates) {
         try {
             core.add_template(this.server, k, this.templates[k]);
-        } catch(e) {
+        } catch (e) {
             console.log("Warning: Unable to add template: " + k);
             delete this.templates[k];
         }
@@ -143,9 +143,9 @@ Ice.prototype.listen = function (addr) {
 
         let mws = this.middlewares.filter(v => rt.path.startsWith(v.prefix));
         let flag_mws = mws.filter(v => v.handler instanceof Flag);
-        mws = mws.filter(v => typeof(v.handler) == "function");
+        mws = mws.filter(v => typeof (v.handler) == "function");
 
-        for(const f of flag_mws) {
+        for (const f of flag_mws) {
             flags.push(f.handler.name);
         }
 
@@ -209,7 +209,7 @@ function Request(server, route, call_info) {
 
     this.cookies = new Proxy({}, {
         get: (t, k) => {
-            if(!self._cookies[k]) {
+            if (!self._cookies[k]) {
                 self._cookies[k] = core.get_request_cookie(self.call_info, k);
             }
             return self._cookies[k];
@@ -218,16 +218,16 @@ function Request(server, route, call_info) {
 
     this.params = new Proxy({}, {
         get: (t, k) => {
-            if(!self._params) {
+            if (!self._params) {
                 try {
                     let params = {};
                     self.url.split("/").filter(v => v).map((v, index) => [self.route.param_mappings[index], v]).forEach(p => {
-                        if(p[0]) {
+                        if (p[0]) {
                             params[p[0]] = p[1];
                         }
                     });
                     self._params = params;
-                } catch(e) {
+                } catch (e) {
                     self._params = {};
                 }
             }
@@ -264,7 +264,7 @@ Request.prototype.form = function () {
 }
 
 module.exports.Response = Response;
-function Response({ status = 200, headers = {}, cookies = {}, body = "", template_name = null, template_params = {} }) {
+function Response({ status = 200, headers = {}, cookies = {}, body = "", file = null, template_name = null, template_params = {} }) {
     // Do strict checks here because errors in Response.send() may cause memory leak & deadlock.
 
     if (typeof (status) != "number" || status < 100 || status >= 600) {
@@ -289,20 +289,23 @@ function Response({ status = 200, headers = {}, cookies = {}, body = "", templat
 
     this.body = null;
     this.template_name = null;
+    this.file = null;
 
-    if(body) {
+    if (body) {
         if (body instanceof Buffer) {
             this.body = body;
         } else {
             this.body = Buffer.from(body);
         }
         if (!this.body) throw new Error("Invalid body");
-    } else if(typeof(template_name) == "string") {
+    } else if (typeof (template_name) == "string") {
         this.template_name = template_name;
-        if(!template_params || typeof(template_params) != "object") {
+        if (!template_params || typeof (template_params) != "object") {
             throw new Error("Invalid template params");
         }
         this.template_params = template_params;
+    } else if (typeof (file) == "string") {
+        this.file = file;
     } else {
         throw new Error("No valid body or template provided");
     }
@@ -311,7 +314,7 @@ function Response({ status = 200, headers = {}, cookies = {}, body = "", templat
 }
 
 Response.prototype.send = function (server, call_info) {
-    if(!(server instanceof Ice)) {
+    if (!(server instanceof Ice)) {
         console.log(server);
         throw new Error("Expecting a server instance. Got it.");
     }
@@ -324,14 +327,16 @@ Response.prototype.send = function (server, call_info) {
     for (const k in this.cookies) {
         core.set_response_cookie(resp, k, this.cookies[k]);
     }
-    if(this.body) {
+    if (this.body) {
         core.set_response_body(resp, this.body);
-    } else {
+    } else if (this.template_name) {
         try {
             core.render_template(call_info, resp, this.template_name, JSON.stringify(this.template_params));
-        } catch(e) {
+        } catch (e) {
             console.log(e);
         }
+    } else if (this.file) {
+        core.set_response_file(resp, this.file);
     }
     core.fire_callback(call_info, resp);
 };
@@ -345,9 +350,15 @@ Response.json = function (data) {
     });
 }
 
+Response.file = function(path) {
+    return new Response({
+        file: path
+    });
+}
+
 module.exports.Flag = Flag;
 function Flag(name) {
-    if(typeof(name) != "string") {
+    if (typeof (name) != "string") {
         throw new Error("Flag name must be a string");
     }
     this.name = name;
