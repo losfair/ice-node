@@ -157,6 +157,8 @@ To set session timeout, pass `session_timeout_ms` parameter when creating the ap
 
 To access the session, use `req.session` object:
 
+    app.use("/user/", new lib.Flag("init_session"));
+
     app.get("/user/logout", req => {
         if(req.session.logged_in == "true") {
             req.session.logged_in = "false";
