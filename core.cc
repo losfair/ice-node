@@ -129,6 +129,27 @@ static void set_session_cookie_name(const FunctionCallbackInfo<Value>& args) {
     ice_server_set_session_cookie_name(server, *_name);
 }
 
+static void set_max_request_body_size(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsNumber()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int id = args[0] -> NumberValue();
+
+    if(id >= servers.size()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+        return;
+    }
+
+    Resource server = servers[id];
+
+    u32 size = args[1] -> NumberValue();
+    ice_server_set_max_request_body_size(server, size);
+}
+
 static void listen(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -628,6 +649,7 @@ static void init(Local<Object> exports) {
     NODE_SET_METHOD(exports, "set_session_timeout_ms", set_session_timeout_ms);
     NODE_SET_METHOD(exports, "add_template", add_template);
     NODE_SET_METHOD(exports, "set_session_cookie_name", set_session_cookie_name);
+    NODE_SET_METHOD(exports, "set_max_request_body_size", set_max_request_body_size);
     NODE_SET_METHOD(exports, "listen", listen);
     NODE_SET_METHOD(exports, "add_endpoint", add_endpoint);
     NODE_SET_METHOD(exports, "fire_callback", fire_callback);

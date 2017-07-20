@@ -25,9 +25,9 @@
     "url": "https://github.com/losfair/ice-node/issues"
   },
   "homepage": "https://github.com/losfair/ice-node#readme",
-  "dependencies": {
-  },
+  "dependencies": {},
   "devDependencies": {
+    "randomstring": "^1.1.5",
     "request": "^2.81.0",
     "request-promise": "^4.2.1"
   }

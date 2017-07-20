@@ -2,6 +2,7 @@ const rp = require("request-promise");
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const randomstring = require("randomstring");
 
 const REMOTE = "http://127.0.0.1:5329";
 
@@ -30,6 +31,26 @@ async function run() {
     assert((await rp.post(REMOTE + "/post/echo/raw", {
         body: "Hello world!"
     })) == "Hello world!");
+
+    console.log("Testing POST (echo, raw, 100000 bytes payload)");
+    let payload = randomstring.generate(100000);
+    assert((await rp.post(REMOTE + "/post/echo/raw", {
+        body: payload
+    })) == payload);
+
+    console.log("Testing POST (echo, raw, 100001 bytes payload)");
+    let ok = false;
+    payload = randomstring.generate(100001);
+    try {
+        await rp.post(REMOTE + "/post/echo/raw", {
+            body: payload
+        });
+    } catch(e) {
+        ok = true;
+    }
+    if(!ok) {
+        throw new Error("A payload larger than limit did not trigger an error");
+    }
 
     console.log("Testing POST (echo, json)");
     let json_data = {
@@ -68,7 +89,7 @@ async function run() {
     })) == "1");
 
     console.log("Testing exception handling (Sync)");
-    let ok = false;
+    ok = false;
     try {
         console.log(await rp.get(REMOTE + "/exception/sync"));
     } catch(e) {

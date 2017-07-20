@@ -15,6 +15,7 @@ extern "C" {
     void ice_server_set_session_cookie_name(Resource handle, const char *name);
     void ice_server_set_session_timeout_ms(Resource handle, u64 t);
     bool ice_server_add_template(Resource handle, const char *name, const char *content);
+    void ice_server_set_max_request_body_size(Resource handle, u32 size);
 
     const char * ice_glue_request_get_remote_addr(Resource req);
     const char * ice_glue_request_get_method(Resource req);

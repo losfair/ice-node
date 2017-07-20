@@ -1,7 +1,9 @@
 const lib = require("../lib.js");
 const path = require("path");
 
-let app = new lib.Ice();
+let app = new lib.Ice({
+    max_request_body_size: 100000
+});
 
 function sleep(ms) {
     return new Promise(cb => setTimeout(() => cb(), ms));

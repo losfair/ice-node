@@ -10,7 +10,8 @@ function Ice(cfg) {
     this.templates = {};
     this.config = {
         session_timeout_ms: cfg.session_timeout_ms || 600000,
-        session_cookie: cfg.session_cookie || "ICE_SESSION_ID"
+        session_cookie: cfg.session_cookie || "ICE_SESSION_ID",
+        max_request_body_size: cfg.max_request_body_size || null
     };
 }
 
@@ -123,6 +124,9 @@ Ice.prototype.listen = function (addr) {
     this.server = core.create_server();
     core.set_session_timeout_ms(this.server, this.config.session_timeout_ms);
     core.set_session_cookie_name(this.server, this.config.session_cookie);
+    if(this.config.max_request_body_size) {
+        core.set_max_request_body_size(this.server, this.config.max_request_body_size);
+    }
 
     for (const k in this.templates) {
         try {
