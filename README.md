@@ -2,7 +2,7 @@ Ice-node is the **fastest** framework for building node web applications, based 
 
 [![Build Status](https://travis-ci.org/losfair/ice-node.svg?branch=master)](https://travis-ci.org/losfair/ice-node)
 
-[简体中文](https://github.com/losfair/IceCore/blob/master/README-zh_CN.md)
+[简体中文](https://github.com/losfair/ice-node/blob/master/README-zh_CN.md)
 
 # Why Ice-node ?
 
