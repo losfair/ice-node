@@ -2,6 +2,8 @@ Ice-node is the **fastest** framework for building node web applications, based 
 
 [![Build Status](https://travis-ci.org/losfair/ice-node.svg?branch=master)](https://travis-ci.org/losfair/ice-node)
 
+[简体中文](https://github.com/losfair/IceCore/blob/master/README-zh_CN.md)
+
 # Why Ice-node ?
 
 ### Fast
@@ -77,10 +79,10 @@ The Request object, which is passed to middlewares and endpoints, contains the f
 - `url` (string): Request URL.
 - `remote_addr` (string): Remote address.
 - `method` (string): Request method, in upper case (`GET`, `POST` etc.) .
-- `host` (string): Alias for headers.host.
+- `host` (string): Alias for `headers.host`.
 - `cookies` (proxied object): Key-value mappings of cookies in the `Cookie` header.
 - `session` (proxied object): Key-value read and write access to the session of the request.
-- `param` (proxied object): Key-value mappings of params in request URL.
+- `params` (proxied object): Key-value mappings of params in request URL.
 
 For example, the following code:
 
@@ -139,7 +141,7 @@ Consider to store your state in sessions, to be accessed fast and synchronously.
 
 Flags, which are directly passed to the core, can be declared in the form of middlewares:
 
-    app.use("/user/", new lib.Flag("init_session"));
+    app.use("/user/", new ice.Flag("init_session"));
 
 Flags are used to enable or disable core features like session management and request body reading.
 
@@ -157,7 +159,7 @@ To set session timeout, pass `session_timeout_ms` parameter when creating the ap
 
 To access the session, use `req.session` object:
 
-    app.use("/user/", new lib.Flag("init_session"));
+    app.use("/user/", new ice.Flag("init_session"));
 
     app.get("/user/logout", req => {
         if(req.session.logged_in == "true") {
