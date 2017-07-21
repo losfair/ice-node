@@ -128,7 +128,15 @@ async function run() {
     assert((await rp.get(REMOTE + "/template/" + template_param)) == expected_rendered_template);
 
     console.log("Testing static file serving");
+    console.log("Dynamic...");
     assert((await rp.get(REMOTE + "/code")) == server_code);
+    console.log("Middleware...");
+    
+    r = await rp.get(REMOTE + "/files/server.js", {
+        resolveWithFullResponse: true
+    });
+    assert(r.body == server_code);
+    assert(r.headers["content-type"] == "application/javascript");
 
     console.log("Everything OK");
     process.exit(0);

@@ -16,6 +16,8 @@ app.add_template("test.html", template);
 
 let my_path = path.join(__dirname, "server.js");
 
+app.use("/files/", lib.static(__dirname));
+
 app.get("/get/sync", req => {
     return "OK";
 });

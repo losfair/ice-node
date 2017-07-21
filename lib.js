@@ -1,4 +1,5 @@
 const core = require("./build/Release/ice_node_core");
+module.exports.static = require("./static.js");
 
 module.exports.Ice = Ice;
 function Ice(cfg) {
@@ -153,11 +154,11 @@ Ice.prototype.listen = function (addr) {
             flags.push(f.handler.name);
         }
 
-        core.add_endpoint(this.server, rt.path, call_info => {
+        core.add_endpoint(this.server, rt.path, async call_info => {
             let req = new Request(self, rt, call_info);
             for (const mw of mws) {
                 try {
-                    mw.handler(req);
+                    await mw.handler(req, mw);
                 } catch (e) {
                     if (e instanceof Response) {
                         e.send(self, call_info);
@@ -179,7 +180,27 @@ Ice.prototype.listen = function (addr) {
     core.listen(this.server, addr);
 };
 
-Ice.prototype.not_found_handler = function (call_info) {
+Ice.prototype.not_found_handler = async function (call_info) {
+    let req = new Request(this, null, call_info);
+    for (const mw of this.middlewares.filter(v => typeof(v.handler) == "function")) {
+        if(req.url.startsWith(mw.prefix)) {
+            try {
+                await mw.handler(req, mw);
+            } catch (e) {
+                if (e instanceof Response) {
+                    e.send(this, call_info);
+                } else {
+                    console.log(e);
+                    new Response({
+                        status: 500,
+                        body: "Internal error"
+                    }).send(this, call_info);
+                }
+                return;
+            }
+        }
+    }
+
     return new Response({
         status: 404,
         body: "Not found"
