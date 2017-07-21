@@ -8,6 +8,8 @@ function sleep(ms) {
     return new Promise(cb => setTimeout(() => cb(), ms));
 }
 
+app.use("/static/", lib.static("."));
+
 app.get("/hello_world", req => {
     return "Hello world!";
 });
