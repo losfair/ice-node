@@ -1,6 +1,6 @@
 {
   "name": "ice-node",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Bindings for the Ice Web Framework",
   "main": "lib.js",
   "scripts": {
