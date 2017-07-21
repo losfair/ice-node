@@ -175,7 +175,7 @@ Ice.prototype.listen = function (addr) {
             });
         }, flags);
     }
-    core.add_endpoint(this.server, "", call_info => this.not_found_handler(call_info));
+    core.add_endpoint(this.server, "", call_info => setImmediate(() => this.not_found_handler(call_info)));
 
     core.listen(this.server, addr);
 };
