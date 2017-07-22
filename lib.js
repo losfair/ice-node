@@ -288,6 +288,10 @@ Request.prototype.form = function () {
     }
 }
 
+Request.prototype.get_stats = function() {
+    return JSON.parse(core.get_stats_from_request(this.call_info));
+}
+
 module.exports.Response = Response;
 function Response({ status = 200, headers = {}, cookies = {}, body = "", file = null, template_name = null, template_params = {} }) {
     // Do strict checks here because errors in Response.send() may cause memory leak & deadlock.

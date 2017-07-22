@@ -27,6 +27,8 @@ extern "C" {
     void ice_glue_request_set_session_item(Resource req, const char *k, const char *v);
     void ice_glue_request_remove_session_item(Resource req, const char *k);
 
+    const char * ice_glue_request_get_stats(Resource req);
+
     void ice_glue_request_add_header(Resource t, const char *k, const char *v);
     const char * ice_glue_request_get_header(Resource t, const char *k);
 
