@@ -511,6 +511,29 @@ static void get_stats_from_request(const FunctionCallbackInfo<Value>& args) {
     args.GetReturnValue().Set(String::NewFromUtf8(isolate, ice_glue_request_get_stats(req)));
 }
 
+static void set_custom_stat(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 3 || !args[0] -> IsNumber() || !args[1] -> IsString() || !args[2] -> IsString()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int call_info_id = args[0] -> NumberValue();
+
+    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+        return;
+    }
+
+    Resource call_info = pending_call_info[call_info_id];
+    Resource req = ice_core_borrow_request_from_call_info(call_info);
+
+    String::Utf8Value _k(args[1] -> ToString()), _v(args[2] -> ToString());
+
+    ice_glue_request_set_custom_stat(req, *_k, *_v);
+}
+
 static void set_response_status(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -682,6 +705,7 @@ static void init(Local<Object> exports) {
     NODE_SET_METHOD(exports, "set_request_session_item", set_request_session_item);
     NODE_SET_METHOD(exports, "get_request_cookie", get_request_cookie);
     NODE_SET_METHOD(exports, "get_stats_from_request", get_stats_from_request);
+    NODE_SET_METHOD(exports, "set_custom_stat", set_custom_stat);
     NODE_SET_METHOD(exports, "create_response", create_response);
     NODE_SET_METHOD(exports, "set_response_status", set_response_status);
     NODE_SET_METHOD(exports, "set_response_header", set_response_header);

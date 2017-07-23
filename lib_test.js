@@ -86,7 +86,8 @@ app.get("/template/render", req => {
 });
 
 app.get("/stats", req => {
-    return lib.Response.json(req.get_stats());
+    console.log(req.get_stats());
+    return lib.Response.json(req.get_stats(true));
 });
 
 app.listen("127.0.0.1:1122");

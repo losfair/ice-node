@@ -1,4 +1,5 @@
 const core = require("./build/Release/ice_node_core");
+const stat = require("./stat.js");
 module.exports.static = require("./static.js");
 
 module.exports.Ice = Ice;
@@ -285,8 +286,15 @@ Request.prototype.form = function () {
     }
 }
 
-Request.prototype.get_stats = function() {
+Request.prototype.get_stats = function(load_system_stats = false) {
+    if(load_system_stats) {
+        stat.update_system_stats(this);
+    }
     return JSON.parse(core.get_stats_from_request(this.call_info));
+}
+
+Request.prototype.set_custom_stat = function(k, v) {
+    core.set_custom_stat(this.call_info, k, v);
 }
 
 module.exports.Response = Response;
