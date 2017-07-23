@@ -273,7 +273,9 @@ static void node_endpoint_handler(uv_async_t *ev) {
         };
 
         Local<Function> cb = Local<Function>::New(isolate, *info.fn);
-        cb -> Call(Null(isolate), 1, argv);
+
+        node::MakeCallback(isolate, Object::New(isolate), cb, 1, argv);
+        //cb -> Call(Null(isolate), 1, argv);
     }
 }
 

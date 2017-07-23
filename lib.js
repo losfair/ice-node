@@ -151,31 +151,28 @@ Ice.prototype.listen = function (addr) {
             flags.push(f.handler.name);
         }
 
-        core.add_endpoint(this.server, rt.path, call_info => {
-            // Why setImmediate ?
-            setImmediate(async () => {
-                let req = new Request(self, rt, call_info);
-                for (const mw of mws) {
-                    try {
-                        await mw.handler(req, mw);
-                    } catch (e) {
-                        if (e instanceof Response) {
-                            e.send(self, call_info);
-                        } else {
-                            console.log(e);
-                            new Response({
-                                status: 500,
-                                body: "Internal error"
-                            }).send(self, call_info);
-                        }
-                        return;
+        core.add_endpoint(this.server, rt.path, async call_info => {
+            let req = new Request(self, rt, call_info);
+            for (const mw of mws) {
+                try {
+                    await mw.handler(req, mw);
+                } catch (e) {
+                    if (e instanceof Response) {
+                        e.send(self, call_info);
+                    } else {
+                        console.log(e);
+                        new Response({
+                            status: 500,
+                            body: "Internal error"
+                        }).send(self, call_info);
                     }
+                    return;
                 }
-                rt.handler(req);
-            });
+            }
+            rt.handler(req);
         }, flags);
     }
-    core.add_endpoint(this.server, "", call_info => setImmediate(() => this.not_found_handler(call_info)));
+    core.add_endpoint(this.server, "", call_info => this.not_found_handler(call_info));
 
     core.listen(this.server, addr);
 };
