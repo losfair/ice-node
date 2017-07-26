@@ -11,6 +11,7 @@ function Ice(cfg) {
     this.middlewares = [];
     this.templates = {};
     this.config = {
+        disable_request_logging: cfg.disable_request_logging || false,
         session_timeout_ms: cfg.session_timeout_ms || 600000,
         session_cookie: cfg.session_cookie || "ICE_SESSION_ID",
         max_request_body_size: cfg.max_request_body_size || null
@@ -125,6 +126,9 @@ Ice.prototype.listen = function (addr) {
     core.set_session_cookie_name(this.server, this.config.session_cookie);
     if(this.config.max_request_body_size) {
         core.set_max_request_body_size(this.server, this.config.max_request_body_size);
+    }
+    if(this.config.disable_request_logging) {
+        core.disable_request_logging(this.server);
     }
 
     for (const k in this.templates) {

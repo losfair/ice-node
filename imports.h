@@ -16,6 +16,7 @@ extern "C" {
     void ice_server_set_session_timeout_ms(Resource handle, u64 t);
     bool ice_server_add_template(Resource handle, const char *name, const char *content);
     void ice_server_set_max_request_body_size(Resource handle, u32 size);
+    void ice_server_disable_request_logging(Resource handle);
 
     const char * ice_glue_request_get_remote_addr(Resource req);
     const char * ice_glue_request_get_method(Resource req);
@@ -25,7 +26,6 @@ extern "C" {
     const char * ice_glue_request_get_session_id(Resource req);
     const char * ice_glue_request_get_session_item(Resource req, const char *k);
     void ice_glue_request_set_session_item(Resource req, const char *k, const char *v);
-    void ice_glue_request_remove_session_item(Resource req, const char *k);
 
     const char * ice_glue_request_get_stats(Resource req);
     void ice_glue_request_set_custom_stat(Resource req, const char *k, const char *v);

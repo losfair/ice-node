@@ -150,6 +150,25 @@ static void set_max_request_body_size(const FunctionCallbackInfo<Value>& args) {
     ice_server_set_max_request_body_size(server, size);
 }
 
+static void disable_request_logging(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 1 || !args[0] -> IsNumber()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int id = args[0] -> NumberValue();
+
+    if(id >= servers.size()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+        return;
+    }
+
+    Resource server = servers[id];
+    ice_server_disable_request_logging(server);
+}
+
 static void listen(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -460,7 +479,7 @@ static void set_request_session_item(const FunctionCallbackInfo<Value>& args) {
         String::Utf8Value _value(args[2] -> ToString());
         ice_glue_request_set_session_item(req, *_key, *_value);
     } else if(args[2] -> IsNull()) {
-        ice_glue_request_remove_session_item(req, *_key);
+        ice_glue_request_set_session_item(req, *_key, NULL);
     } else {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid value"));
     }
@@ -696,6 +715,7 @@ static void init(Local<Object> exports) {
     NODE_SET_METHOD(exports, "add_template", add_template);
     NODE_SET_METHOD(exports, "set_session_cookie_name", set_session_cookie_name);
     NODE_SET_METHOD(exports, "set_max_request_body_size", set_max_request_body_size);
+    NODE_SET_METHOD(exports, "disable_request_logging", disable_request_logging);
     NODE_SET_METHOD(exports, "listen", listen);
     NODE_SET_METHOD(exports, "add_endpoint", add_endpoint);
     NODE_SET_METHOD(exports, "fire_callback", fire_callback);

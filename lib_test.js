@@ -1,6 +1,7 @@
 const lib = require("./lib.js");
 
 let app = new lib.Ice({
+    disable_request_logging: true,
     session_timeout_ms: 10000
 });
 
