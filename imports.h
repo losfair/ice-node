@@ -17,6 +17,7 @@ extern "C" {
     bool ice_server_add_template(Resource handle, const char *name, const char *content);
     void ice_server_set_max_request_body_size(Resource handle, u32 size);
     void ice_server_disable_request_logging(Resource handle);
+    void ice_server_set_async_endpoint_cb(Resource handle, AsyncEndpointHandler cb);
 
     const char * ice_glue_request_get_remote_addr(Resource req);
     const char * ice_glue_request_get_method(Resource req);
@@ -52,8 +53,6 @@ extern "C" {
 
     char * ice_glue_request_render_template_to_owned(Resource t, const char *name, const char *data);
     bool ice_glue_response_consume_rendered_template(Resource t, char *output);
-
-    void ice_glue_register_async_endpoint_handler(AsyncEndpointHandler);
 
     void ice_core_fire_callback(Resource call_info, Resource resp);
     Resource ice_core_borrow_request_from_call_info(Resource call_info);

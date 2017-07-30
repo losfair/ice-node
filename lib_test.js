@@ -11,6 +11,8 @@ function sleep(ms) {
 
 app.use("/static/", lib.static("."));
 
+app.get("/", req => "Root");
+
 app.get("/hello_world", req => {
     return "Hello world!";
 });

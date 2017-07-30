@@ -51,11 +51,27 @@ static std::deque<int> released_pending_call_info_ids; // Not thread safe.
 static std::vector<Resource> pending_responses;
 static std::deque<int> released_pending_response_ids; // Not thread safe.
 
+static void async_endpoint_handler(int id, Resource call_info) {
+    auto target = endpoint_handlers[id];
+    if(!target) {
+        std::cerr << "Warning: Received async callback to unknown endpoint " << id << "." << std::endl;
+        return;
+    }
+
+    pending_cbs_mutex.lock();
+    pending_cbs.push_back(target -> to_async_cb_info(call_info));
+    pending_cbs_mutex.unlock();
+
+    uv_async_send(&uv_async);
+}
+
 static void create_server(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
     Resource inst = ice_create_server();
     servers.push_back(inst);
     int id = servers.size() - 1;
+
+    ice_server_set_async_endpoint_cb(inst, async_endpoint_handler);
 
     args.GetReturnValue().Set(Number::New(isolate, id));
 }
@@ -246,20 +262,6 @@ static void add_endpoint(const FunctionCallbackInfo<Value>& args) {
     auto cb = new Persistent<Function>(isolate, _cb);
 
     endpoint_handlers[ep_id] = new EndpointHandlerInfo(cb);
-}
-
-static void async_endpoint_handler(int id, Resource call_info) {
-    auto target = endpoint_handlers[id];
-    if(!target) {
-        std::cerr << "Warning: Received async callback to unknown endpoint " << id << "." << std::endl;
-        return;
-    }
-
-    pending_cbs_mutex.lock();
-    pending_cbs.push_back(target -> to_async_cb_info(call_info));
-    pending_cbs_mutex.unlock();
-
-    uv_async_send(&uv_async);
 }
 
 static void node_endpoint_handler(uv_async_t *ev) {
@@ -708,7 +710,6 @@ static void render_template(const FunctionCallbackInfo<Value>& args) {
 
 static void init(Local<Object> exports) {
     uv_async_init(uv_default_loop(), &uv_async, node_endpoint_handler);
-    ice_glue_register_async_endpoint_handler(async_endpoint_handler);
 
     NODE_SET_METHOD(exports, "create_server", create_server);
     NODE_SET_METHOD(exports, "set_session_timeout_ms", set_session_timeout_ms);
