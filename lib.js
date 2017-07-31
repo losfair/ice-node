@@ -14,7 +14,8 @@ function Ice(cfg) {
         disable_request_logging: cfg.disable_request_logging || false,
         session_timeout_ms: cfg.session_timeout_ms || 600000,
         session_cookie: cfg.session_cookie || "ICE_SESSION_ID",
-        max_request_body_size: cfg.max_request_body_size || null
+        max_request_body_size: cfg.max_request_body_size || null,
+        endpoint_timeout_ms: cfg.endpoint_timeout_ms === undefined ? null : cfg.endpoint_timeout_ms
     };
 }
 
@@ -129,6 +130,9 @@ Ice.prototype.listen = function (addr) {
     }
     if(this.config.disable_request_logging) {
         core.disable_request_logging(this.server);
+    }
+    if(this.config.endpoint_timeout_ms !== null) {
+        core.set_endpoint_timeout_ms(this.server, this.config.endpoint_timeout_ms);
     }
 
     for (const k in this.templates) {
@@ -351,10 +355,12 @@ function Response({ status = 200, headers = {}, cookies = {}, body = "", file = 
     Object.freeze(this);
 }
 
+
+// This should not throw.
 Response.prototype.send = function (server, call_info) {
     if (!(server instanceof Ice)) {
-        console.log(server);
-        throw new Error("Expecting a server instance. Got it.");
+        console.log("Error in Request.send(): Expecting a server instance");
+        return;
     }
 
     let resp = core.create_response();
@@ -376,7 +382,12 @@ Response.prototype.send = function (server, call_info) {
     } else if (this.file) {
         core.set_response_file(resp, this.file);
     }
-    core.fire_callback(call_info, resp);
+
+    try {
+        core.fire_callback(call_info, resp);
+    } catch(e) {
+        console.log("Error in Request.send(): " + e);
+    }
 };
 
 Response.json = function (data) {

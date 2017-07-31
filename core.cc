@@ -76,6 +76,27 @@ static void create_server(const FunctionCallbackInfo<Value>& args) {
     args.GetReturnValue().Set(Number::New(isolate, id));
 }
 
+static void set_endpoint_timeout_ms(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsNumber()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int id = args[0] -> NumberValue();
+
+    if(id >= servers.size()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+        return;
+    }
+
+    Resource server = servers[id];
+
+    unsigned int timeout = args[1] -> NumberValue();
+    ice_server_set_endpoint_timeout_ms(server, timeout);
+}
+
 static void set_session_timeout_ms(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -332,7 +353,11 @@ static void fire_callback(const FunctionCallbackInfo<Value>& args) {
 
     //std::cerr << pending_call_info.size() << " " << pending_responses.size() << std::endl;
 
-    ice_core_fire_callback(call_info, resp);
+    bool ret = ice_core_fire_callback(call_info, resp);
+    if(!ret) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Response rejected by core"));
+        return;
+    }
 }
 
 static void create_response(const FunctionCallbackInfo<Value>& args) {
@@ -712,6 +737,7 @@ static void init(Local<Object> exports) {
     uv_async_init(uv_default_loop(), &uv_async, node_endpoint_handler);
 
     NODE_SET_METHOD(exports, "create_server", create_server);
+    NODE_SET_METHOD(exports, "set_endpoint_timeout_ms", set_endpoint_timeout_ms);
     NODE_SET_METHOD(exports, "set_session_timeout_ms", set_session_timeout_ms);
     NODE_SET_METHOD(exports, "add_template", add_template);
     NODE_SET_METHOD(exports, "set_session_cookie_name", set_session_cookie_name);
