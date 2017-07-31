@@ -105,6 +105,8 @@ Ice.prototype.route = function (methods, p, handler) {
 
 /**
  * An alias of `route`, with `methods` set to ["GET"].
+ * @param {string} p - The target path for the route.
+ * @param {function} handler - Called when a request hits the route, with a parameter of type Request.
  */
 Ice.prototype.get = function (p, handler) {
     return this.route(["HEAD", "GET"], p, handler);
@@ -112,6 +114,8 @@ Ice.prototype.get = function (p, handler) {
 
 /**
  * An alias of `route`, with `methods` set to ["POST"].
+ * @param {string} p - The target path for the route.
+ * @param {function} handler - Called when a request hits the route, with a parameter of type Request.
  */
 Ice.prototype.post = function (p, handler) {
     return this.route("POST", p, handler);
@@ -119,6 +123,8 @@ Ice.prototype.post = function (p, handler) {
 
 /**
  * An alias of `route`, with `methods` set to ["PUT"].
+ * @param {string} p - The target path for the route.
+ * @param {function} handler - Called when a request hits the route, with a parameter of type Request.
  */
 Ice.prototype.put = function (p, handler) {
     return this.route("PUT", p, handler);
@@ -126,6 +132,8 @@ Ice.prototype.put = function (p, handler) {
 
 /**
  * An alias of `route`, with `methods` set to ["Delete"].
+ * @param {string} p - The target path for the route.
+ * @param {function} handler - Called when a request hits the route, with a parameter of type Request.
  */
 Ice.prototype.delete = function (p, handler) {
     return this.route("DELETE", p, handler);
