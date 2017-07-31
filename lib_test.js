@@ -94,4 +94,14 @@ app.get("/stats", req => {
     return lib.Response.json(req.get_stats(true));
 });
 
+app.get("/stream", req => {
+    return new lib.Response({
+        streaming_cb: stream => {
+            stream.write("Hello world from a stream\n");
+            stream.write("The second line\n");
+            stream.close();
+        }
+    });
+});
+
 app.listen("127.0.0.1:1122");

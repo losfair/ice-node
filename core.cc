@@ -693,6 +693,86 @@ static void set_response_file(const FunctionCallbackInfo<Value>& args) {
     ice_glue_response_set_file(resp, *_path);
 }
 
+static void enable_response_streaming(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsNumber()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    unsigned int resp_id = args[0] -> NumberValue();
+
+    if(resp_id >= pending_responses.size() || !pending_responses[resp_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid response id"));
+        return;
+    }
+
+    Resource resp = pending_responses[resp_id];
+
+    unsigned int call_info_id = args[1] -> NumberValue();
+
+    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+        return;
+    }
+
+    Resource call_info = pending_call_info[call_info_id];
+    Resource req = ice_core_borrow_request_from_call_info(call_info);
+
+    Local<FunctionTemplate> ft = FunctionTemplate::New(isolate);
+    ft -> InstanceTemplate() -> SetInternalFieldCount(1);
+
+    Local<Object> stream_provider = ft -> GetFunction() -> NewInstance();
+    Resource internal_sp = ice_glue_response_stream(resp, ice_glue_request_borrow_context(req));
+    stream_provider -> SetAlignedPointerInInternalField(0, internal_sp);
+
+    args.GetReturnValue().Set(stream_provider);
+}
+
+static void write_response_stream(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 2 || !args[0] -> IsObject() || !args[1] -> IsObject()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    Local<Object> stream_provider = Local<Object>::Cast(args[0]);
+    Local<Object> buf_obj = Local<Object>::Cast(args[1]);
+
+    Resource internal_sp = stream_provider -> GetAlignedPointerFromInternalField(0);
+    if(!internal_sp) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid stream"));
+        return;
+    }
+
+    u8 *data = (u8 *) node::Buffer::Data(buf_obj);
+    u32 data_len = node::Buffer::Length(buf_obj);
+
+    ice_core_stream_provider_send_chunk(internal_sp, data, data_len);
+}
+
+static void close_response_stream(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = args.GetIsolate();
+
+    if(args.Length() < 1 || !args[0] -> IsObject()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
+    }
+
+    Local<Object> stream_provider = Local<Object>::Cast(args[0]);
+
+    Resource internal_sp = stream_provider -> GetAlignedPointerFromInternalField(0);
+    if(!internal_sp) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid stream"));
+        return;
+    }
+
+    stream_provider -> SetAlignedPointerInInternalField(0, NULL);
+    ice_core_destroy_stream_provider(internal_sp);
+}
+
 static void render_template(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
@@ -759,6 +839,9 @@ static void init(Local<Object> exports) {
     NODE_SET_METHOD(exports, "set_response_cookie", set_response_cookie);
     NODE_SET_METHOD(exports, "set_response_body", set_response_body);
     NODE_SET_METHOD(exports, "set_response_file", set_response_file);
+    NODE_SET_METHOD(exports, "enable_response_streaming", enable_response_streaming);
+    NODE_SET_METHOD(exports, "write_response_stream", write_response_stream);
+    NODE_SET_METHOD(exports, "close_response_stream", close_response_stream);
     NODE_SET_METHOD(exports, "render_template", render_template);
 }
 

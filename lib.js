@@ -410,7 +410,7 @@ module.exports.Response = Response;
  * @param {string} template_name - Name of the template to render. Must have been loaded with `add_template()`.
  * @param {object} template_params - Parameters to pass to the template
  */
-function Response({ status = 200, headers = {}, cookies = {}, body = "", file = null, template_name = null, template_params = {} }) {
+function Response({ status = 200, headers = {}, cookies = {}, body = "", file = null, template_name = null, template_params = {}, streaming_cb = null }) {
     // Do strict checks here because errors in Response.send() may cause memory leak & deadlock.
 
     if(!(this instanceof Response)) {
@@ -457,7 +457,14 @@ function Response({ status = 200, headers = {}, cookies = {}, body = "", file = 
     } else if (typeof (file) == "string") {
         this.file = file;
     } else {
-        throw new Error("No valid body or template provided");
+        this.body = Buffer.from("");
+    }
+
+    if(streaming_cb) {
+        if(typeof(streaming_cb) != "function") {
+            throw new Error("Streaming callback must be a function");
+        }
+        this.streaming_cb = streaming_cb;
     }
 
     Object.freeze(this);
@@ -494,6 +501,11 @@ Response.prototype.send = function (server, call_info) {
         core.set_response_file(resp, this.file);
     }
 
+    if(this.streaming_cb) {
+        let sp = new ResponseStream(core.enable_response_streaming(resp, call_info));
+        setImmediate(() => this.streaming_cb(sp));
+    }
+
     try {
         core.fire_callback(call_info, resp);
     } catch(e) {
@@ -524,6 +536,30 @@ Response.file = function(path) {
     return new Response({
         file: path
     });
+}
+
+function ResponseStream(sp) {
+    if(!(this instanceof ResponseStream)) {
+        return new ResponseStream(...arguments);
+    }
+
+    this.sp = sp;
+}
+
+ResponseStream.prototype.write = function(data) {
+    if(!data) {
+        throw new Error("Data required");
+    }
+
+    if(!(data instanceof Buffer)) {
+        data = Buffer.from(data);
+    }
+
+    core.write_response_stream(this.sp, data);
+}
+
+ResponseStream.prototype.close = function() {
+    core.close_response_stream(this.sp);
 }
 
 module.exports.Flag = Flag;
