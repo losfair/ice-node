@@ -95,13 +95,13 @@ app.get("/stats", req => {
 });
 
 app.get("/stream", req => {
-    return new lib.Response({
-        streaming_cb: stream => {
-            stream.write("Hello world from a stream\n");
-            stream.write("The second line\n");
-            stream.close();
-        }
+    return lib.Response.stream(async stream => {
+        stream.write("Hello world from a stream\n");
+        await sleep(1000);
+        stream.write("The second line\n");
     });
 });
+
+app.get("/redirect/stream", req => lib.Response.redirect("/stream"));
 
 app.listen("127.0.0.1:1122");

@@ -503,7 +503,10 @@ Response.prototype.send = function (server, call_info) {
 
     if(this.streaming_cb) {
         let sp = new ResponseStream(core.enable_response_streaming(resp, call_info));
-        setImmediate(() => this.streaming_cb(sp));
+        setImmediate(async () => {
+            await this.streaming_cb(sp);
+            sp.close();
+        });
     }
 
     try {
@@ -535,6 +538,21 @@ Response.json = function (data) {
 Response.file = function(path) {
     return new Response({
         file: path
+    });
+}
+
+Response.redirect = function(target, code = 302) {
+    return new Response({
+        status: code,
+        headers: {
+            Location: target
+        }
+    });
+}
+
+Response.stream = function(cb) {
+    return new Response({
+        streaming_cb: cb
     });
 }
 
