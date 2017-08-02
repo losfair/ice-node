@@ -1,13 +1,18 @@
 #include <node.h>
 #include <node_buffer.h>
 #include <uv.h>
-#include "imports.h"
 #include <vector>
 #include <map>
 #include <iostream>
 #include <queue>
 #include <mutex>
 #include <string>
+#include "ice.h"
+
+#define RESOURCE_TYPE_UNKNOWN 0
+#define RESOURCE_TYPE_SERVER 1
+#define RESOURCE_TYPE_REQUEST 2
+#define RESOURCE_TYPE_RESPONSE 3
 
 using namespace v8;
 
@@ -38,107 +43,114 @@ struct EndpointHandlerInfo {
     }
 };
 
-static std::vector<Resource> servers;
-static std::map<int, EndpointHandlerInfo *> endpoint_handlers;
+//static std::map<int, EndpointHandlerInfo *> endpoint_handlers;
 static uv_async_t uv_async;
 
 static std::deque<AsyncCallbackInfo> pending_cbs;
 static std::mutex pending_cbs_mutex;
 
-static std::vector<Resource> pending_call_info;
-static std::deque<int> released_pending_call_info_ids; // Not thread safe.
+static Local<Object> build_resource(Isolate *isolate, unsigned long type, Resource handle) {
+    Local<FunctionTemplate> ft = FunctionTemplate::New(isolate);
+    ft -> InstanceTemplate() -> SetInternalFieldCount(2);
 
-static std::vector<Resource> pending_responses;
-static std::deque<int> released_pending_response_ids; // Not thread safe.
+    Local<Object> ret = ft -> GetFunction() -> NewInstance();
+    ret -> SetAlignedPointerInInternalField(0, (void *) type);
+    ret -> SetAlignedPointerInInternalField(1, handle);
 
-static void async_endpoint_handler(int id, Resource call_info) {
-    auto target = endpoint_handlers[id];
-    if(!target) {
-        std::cerr << "Warning: Received async callback to unknown endpoint " << id << "." << std::endl;
-        return;
+    return ret;
+}
+
+
+static Resource get_resource(unsigned long target_type, Local<Object> obj) {
+    if(obj -> InternalFieldCount() != 2) {
+        return NULL;
     }
 
-    pending_cbs_mutex.lock();
-    pending_cbs.push_back(target -> to_async_cb_info(call_info));
-    pending_cbs_mutex.unlock();
+    unsigned long type = (unsigned long) obj -> GetAlignedPointerFromInternalField(0);
+    if(type != target_type) return NULL;
 
-    uv_async_send(&uv_async);
+    Resource ret = obj -> GetAlignedPointerFromInternalField(1);
+    return ret;
+}
+
+template<class T> T * get_resource(unsigned long target_type, Local<Object> obj) {
+    return (T *) ((Resource) get_resource(target_type, obj));
+}
+
+static bool set_resource(unsigned long target_type, Local<Object> obj, Resource handle) {
+    if(obj -> InternalFieldCount() != 2) {
+        return false;
+    }
+
+    unsigned long type = (unsigned long) obj -> GetAlignedPointerFromInternalField(0);
+    if(type != target_type) return false;
+
+    obj -> SetAlignedPointerInInternalField(1, handle);
+
+    return true;
 }
 
 static void create_server(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
-    Resource inst = ice_create_server();
-    servers.push_back(inst);
-    int id = servers.size() - 1;
+    ice::Server *server = new ice::Server(NULL);
 
-    ice_server_set_async_endpoint_cb(inst, async_endpoint_handler);
-
-    args.GetReturnValue().Set(Number::New(isolate, id));
+    args.GetReturnValue().Set(build_resource(isolate, RESOURCE_TYPE_SERVER, server));
 }
 
 static void set_endpoint_timeout_ms(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsNumber()) {
+    if(args.Length() < 2 || !args[0] -> IsObject() || !args[1] -> IsNumber()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int id = args[0] -> NumberValue();
-
-    if(id >= servers.size()) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+    ice::Server *server = get_resource<ice::Server>(RESOURCE_TYPE_SERVER, Local<Object>::Cast(args[0]));
+    if(!server) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Unable to get server"));
         return;
     }
 
-    Resource server = servers[id];
-
     unsigned int timeout = args[1] -> NumberValue();
-    ice_server_set_endpoint_timeout_ms(server, timeout);
+    ice_server_set_endpoint_timeout_ms(server -> handle, timeout);
 }
 
 static void set_session_timeout_ms(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsNumber()) {
+    if(args.Length() < 2 || !args[0] -> IsObject() || !args[1] -> IsNumber()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int id = args[0] -> NumberValue();
-
-    if(id >= servers.size()) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+    ice::Server *server = get_resource<ice::Server>(RESOURCE_TYPE_SERVER, Local<Object>::Cast(args[0]));
+    if(!server) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Unable to get server"));
         return;
     }
 
-    Resource server = servers[id];
-
     unsigned int timeout = args[1] -> NumberValue();
-    ice_server_set_session_timeout_ms(server, timeout);
+    ice_server_set_session_timeout_ms(server -> handle, timeout);
 }
 
 static void add_template(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 3 || !args[0] -> IsNumber() || !args[1] -> IsString() || !args[2] -> IsString()) {
+    if(args.Length() < 3 || !args[0] -> IsObject() || !args[1] -> IsString() || !args[2] -> IsString()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int id = args[0] -> NumberValue();
-
-    if(id >= servers.size()) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+    ice::Server *server = get_resource<ice::Server>(RESOURCE_TYPE_SERVER, Local<Object>::Cast(args[0]));
+    if(!server) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Unable to get server"));
         return;
     }
-
-    Resource server = servers[id];
 
     String::Utf8Value _name(args[1] -> ToString());
     String::Utf8Value _content(args[2] -> ToString());
 
-    bool ret = ice_server_add_template(server, *_name, *_content);
+    bool ret = ice_server_add_template(server -> handle, *_name, *_content);
     if(!ret) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Unable to add template"));
         return;
@@ -148,88 +160,80 @@ static void add_template(const FunctionCallbackInfo<Value>& args) {
 static void set_session_cookie_name(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsString()) {
+    if(args.Length() < 2 || !args[0] -> IsObject() || !args[1] -> IsString()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int id = args[0] -> NumberValue();
-
-    if(id >= servers.size()) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+    ice::Server *server = get_resource<ice::Server>(RESOURCE_TYPE_SERVER, Local<Object>::Cast(args[0]));
+    if(!server) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Unable to get server"));
         return;
     }
 
-    Resource server = servers[id];
-
     String::Utf8Value _name(args[1] -> ToString());
-    ice_server_set_session_cookie_name(server, *_name);
+    ice_server_set_session_cookie_name(server -> handle, *_name);
 }
 
 static void set_max_request_body_size(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsNumber()) {
+    if(args.Length() < 2 || !args[0] -> IsObject() || !args[1] -> IsNumber()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int id = args[0] -> NumberValue();
-
-    if(id >= servers.size()) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+    ice::Server *server = get_resource<ice::Server>(RESOURCE_TYPE_SERVER, Local<Object>::Cast(args[0]));
+    if(!server) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Unable to get server"));
         return;
     }
 
-    Resource server = servers[id];
-
     u32 size = args[1] -> NumberValue();
-    ice_server_set_max_request_body_size(server, size);
+    ice_server_set_max_request_body_size(server -> handle, size);
 }
 
 static void disable_request_logging(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 1 || !args[0] -> IsNumber()) {
+    if(args.Length() < 1 || !args[0] -> IsObject()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int id = args[0] -> NumberValue();
-
-    if(id >= servers.size()) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+    ice::Server *server = get_resource<ice::Server>(RESOURCE_TYPE_SERVER, Local<Object>::Cast(args[0]));
+    if(!server) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Unable to get server"));
         return;
     }
 
-    Resource server = servers[id];
-    ice_server_disable_request_logging(server);
+    server -> disable_request_logging();
 }
 
 static void listen(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsString()) {
+    if(args.Length() < 2 || !args[0] -> IsObject() || !args[1] -> IsString()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int id = args[0] -> NumberValue();
-    String::Utf8Value _addr(args[1] -> ToString());
-    const char *addr = *_addr;
-
-    if(id >= servers.size()) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+    ice::Server *server = get_resource<ice::Server>(RESOURCE_TYPE_SERVER, Local<Object>::Cast(args[0]));
+    if(!server) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Unable to get server"));
         return;
     }
 
-    ice_server_listen(servers[id], addr);
+    String::Utf8Value _addr(args[1] -> ToString());
+    const char *addr = *_addr;
+
+    server -> listen(addr);
 }
 
 static void add_endpoint(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 3 || !args[0] -> IsNumber() || !args[1] -> IsString() || !args[2] -> IsFunction()) {
+    if(args.Length() < 3 || !args[0] -> IsObject() || !args[1] -> IsString() || !args[2] -> IsFunction()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
@@ -255,159 +259,109 @@ static void add_endpoint(const FunctionCallbackInfo<Value>& args) {
         }
     }
 
-    unsigned int id = args[0] -> NumberValue();
-    String::Utf8Value _p(args[1] -> ToString());
-    const char *p = *_p;
-
-    if(id >= servers.size()) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid server id"));
+    ice::Server *server = get_resource<ice::Server>(RESOURCE_TYPE_SERVER, Local<Object>::Cast(args[0]));
+    if(!server) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Unable to get server"));
         return;
     }
 
-    Resource server = servers[id];
+    String::Utf8Value _p(args[1] -> ToString());
+    const char *p = *_p;
 
     int ep_id = -1;
-
-    if(!p || p[0] == 0) {
-        ep_id = -1; // Default endpoint
-    } else {
-        Resource ep = ice_server_router_add_endpoint(server, p);
-        for(auto& f : flags) {
-            ice_core_endpoint_set_flag(ep, f.c_str(), true);
-        }
-
-        ep_id = ice_core_endpoint_get_id(ep);
-    }
 
     Local<Function> _cb = Local<Function>::Cast(args[2]);
     auto cb = new Persistent<Function>(isolate, _cb);
 
-    endpoint_handlers[ep_id] = new EndpointHandlerInfo(cb);
-}
+    if(!p || p[0] == 0) {
+        p = ""; // Default endpoint
+    }
+    server -> route_async(p, [cb](ice::Request _req) {
+        Isolate *isolate = Isolate::GetCurrent();
+        Local<Function> local_cb = Local<Function>::New(isolate, *cb);
 
-static void node_endpoint_handler(uv_async_t *ev) {
-    Isolate *isolate = Isolate::GetCurrent();
-    HandleScope currentScope(isolate);
-
-    while(true) {
-        pending_cbs_mutex.lock();
-        if(pending_cbs.size() == 0) {
-            pending_cbs_mutex.unlock();
-            break;
-        }
-        AsyncCallbackInfo info = pending_cbs.front();
-        pending_cbs.pop_front();
-        pending_cbs_mutex.unlock();
-
-        int pci_id = -1;
-
-        if(released_pending_call_info_ids.size()) {
-            pci_id = released_pending_call_info_ids.front();
-            released_pending_call_info_ids.pop_front();
-            pending_call_info[pci_id] = info.call_info;
-        } else {
-            pending_call_info.push_back(info.call_info);
-            pci_id = pending_call_info.size() - 1;
-        }
+        ice::Request *req = new ice::Request(_req);
 
         Local<Value> argv[] = {
-            Number::New(isolate, pci_id)
+            build_resource(isolate, RESOURCE_TYPE_REQUEST, (void *) req)
         };
 
-        Local<Function> cb = Local<Function>::New(isolate, *info.fn);
-
-        node::MakeCallback(isolate, Object::New(isolate), cb, 1, argv);
-        //cb -> Call(Null(isolate), 1, argv);
-    }
+        node::MakeCallback(isolate, Object::New(isolate), local_cb, 1, argv);
+    });
 }
 
 static void fire_callback(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsNumber()) {
+    if(args.Length() < 2 || !args[0] -> IsObject() || !args[1] -> IsObject()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int call_info_id = args[0] -> NumberValue();
-    unsigned int response_id = args[1] -> NumberValue();
-
-    if(call_info_id >= pending_call_info.size() || response_id >= pending_responses.size()) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id and / or response_id"));
+    ice::Request *req = get_resource<ice::Request>(RESOURCE_TYPE_REQUEST, Local<Object>::Cast(args[0]));
+    if(!req) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid request"));
         return;
     }
 
-    Resource call_info = pending_call_info[call_info_id];
-    Resource resp = pending_responses[response_id];
-
-    if(!call_info || !resp) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id and / or response_id"));
+    ice::Response *resp = get_resource<ice::Response>(RESOURCE_TYPE_RESPONSE, Local<Object>::Cast(args[1]));
+    if(!resp) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid response"));
         return;
     }
 
-    pending_call_info[call_info_id] = NULL;
-    pending_responses[response_id] = NULL;
+    resp -> send();
 
-    released_pending_call_info_ids.push_back(call_info_id);
-    released_pending_response_ids.push_back(response_id);
-
-    //std::cerr << pending_call_info.size() << " " << pending_responses.size() << std::endl;
-
-    bool ret = ice_core_fire_callback(call_info, resp);
-    if(!ret) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Response rejected by core"));
-        return;
-    }
+    delete req;
+    delete resp;
+    set_resource(RESOURCE_TYPE_REQUEST, Local<Object>::Cast(args[0]), NULL);
+    set_resource(RESOURCE_TYPE_RESPONSE, Local<Object>::Cast(args[1]), NULL);
 }
 
 static void create_response(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    auto resp = ice_glue_create_response();
-    int pr_id = -1;
-
-    if(released_pending_response_ids.size()) {
-        pr_id = released_pending_response_ids.front();
-        released_pending_response_ids.pop_front();
-        pending_responses[pr_id] = resp;
-    } else {
-        pending_responses.push_back(resp);
-        pr_id = pending_responses.size() - 1;
+    if(args.Length() < 1 || !args[0] -> IsObject()) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
+        return;
     }
 
-    args.GetReturnValue().Set(Number::New(isolate, pr_id));
+    ice::Request *req = get_resource<ice::Request>(RESOURCE_TYPE_REQUEST, Local<Object>::Cast(args[0]));
+    if(!req) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid request"));
+        return;
+    }
+
+    ice::Response *resp = new ice::Response(req -> create_response());
+    args.GetReturnValue().Set(build_resource(isolate, RESOURCE_TYPE_RESPONSE, (void *) resp));
 }
 
 static void get_request_info(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 1 || !args[0] -> IsNumber()) {
+    if(args.Length() < 1 || !args[0] -> IsObject()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int call_info_id = args[0] -> NumberValue();
-
-    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+    ice::Request *req = get_resource<ice::Request>(RESOURCE_TYPE_REQUEST, Local<Object>::Cast(args[0]));
+    if(!req) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid request"));
         return;
     }
 
-    Resource call_info = pending_call_info[call_info_id];
-    Resource req = ice_core_borrow_request_from_call_info(call_info);
-
     Local<Object> info = Object::New(isolate);
-    info -> Set(String::NewFromUtf8(isolate, "uri"), String::NewFromUtf8(isolate, ice_glue_request_get_uri(req)));
-    info -> Set(String::NewFromUtf8(isolate, "method"), String::NewFromUtf8(isolate, ice_glue_request_get_method(req)));
-    info -> Set(String::NewFromUtf8(isolate, "remote_addr"), String::NewFromUtf8(isolate, ice_glue_request_get_remote_addr(req)));
+    info -> Set(String::NewFromUtf8(isolate, "uri"), String::NewFromUtf8(isolate, req -> get_uri()));
+    info -> Set(String::NewFromUtf8(isolate, "method"), String::NewFromUtf8(isolate, req -> get_method()));
+    info -> Set(String::NewFromUtf8(isolate, "remote_addr"), String::NewFromUtf8(isolate, req -> get_remote_addr()));
 
     Local<Object> headers = Object::New(isolate);
-    auto itr_p = ice_glue_request_create_header_iterator(req);
+    auto itr_p = ice_glue_request_create_header_iterator(req -> handle);
 
     while(true) {
-        const char *k = ice_glue_request_header_iterator_next(req, itr_p);
+        const char *k = ice_glue_request_header_iterator_next(req -> handle, itr_p);
         if(!k) break;
-        const char *v = ice_glue_request_get_header(req, k);
+        const char *v = ice_glue_request_get_header(req -> handle, k);
         if(v) {
             headers -> Set(String::NewFromUtf8(isolate, k), String::NewFromUtf8(isolate, v));
         }
@@ -422,23 +376,19 @@ static void get_request_info(const FunctionCallbackInfo<Value>& args) {
 static void get_request_body(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 1 || !args[0] -> IsNumber()) {
+    if(args.Length() < 1 || !args[0] -> IsObject()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int call_info_id = args[0] -> NumberValue();
-
-    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+    ice::Request *req = get_resource<ice::Request>(RESOURCE_TYPE_REQUEST, Local<Object>::Cast(args[0]));
+    if(!req) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid request"));
         return;
     }
 
-    Resource call_info = pending_call_info[call_info_id];
-    Resource req = ice_core_borrow_request_from_call_info(call_info);
-
     u32 body_len = 0;
-    const u8 *body = ice_glue_request_get_body(req, &body_len);
+    const u8 *body = ice_glue_request_get_body(req -> handle, &body_len);
 
     if(!body || !body_len) {
         args.GetReturnValue().Set(Null(isolate));
@@ -457,23 +407,19 @@ static void get_request_body(const FunctionCallbackInfo<Value>& args) {
 static void get_request_session_item(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsString()) {
+    if(args.Length() < 2 || !args[0] -> IsObject() || !args[1] -> IsString()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int call_info_id = args[0] -> NumberValue();
-
-    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+    ice::Request *req = get_resource<ice::Request>(RESOURCE_TYPE_REQUEST, Local<Object>::Cast(args[0]));
+    if(!req) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid request"));
         return;
     }
 
-    Resource call_info = pending_call_info[call_info_id];
-    Resource req = ice_core_borrow_request_from_call_info(call_info);
-
     String::Utf8Value _key(args[1] -> ToString());
-    const char *value = ice_glue_request_get_session_item(req, *_key);
+    const char *value = ice_glue_request_get_session_item(req -> handle, *_key);
     if(!value) {
         args.GetReturnValue().Set(Null(isolate));
         return;
@@ -485,28 +431,24 @@ static void get_request_session_item(const FunctionCallbackInfo<Value>& args) {
 static void set_request_session_item(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 3 || !args[0] -> IsNumber() || !args[1] -> IsString()) {
+    if(args.Length() < 3 || !args[0] -> IsObject() || !args[1] -> IsString()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int call_info_id = args[0] -> NumberValue();
-
-    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+    ice::Request *req = get_resource<ice::Request>(RESOURCE_TYPE_REQUEST, Local<Object>::Cast(args[0]));
+    if(!req) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid request"));
         return;
     }
-
-    Resource call_info = pending_call_info[call_info_id];
-    Resource req = ice_core_borrow_request_from_call_info(call_info);
 
     String::Utf8Value _key(args[1] -> ToString());
 
     if(args[2] -> IsString()) {
         String::Utf8Value _value(args[2] -> ToString());
-        ice_glue_request_set_session_item(req, *_key, *_value);
+        ice_glue_request_set_session_item(req -> handle, *_key, *_value);
     } else if(args[2] -> IsNull()) {
-        ice_glue_request_set_session_item(req, *_key, NULL);
+        ice_glue_request_set_session_item(req -> handle, *_key, NULL);
     } else {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid value"));
     }
@@ -515,23 +457,19 @@ static void set_request_session_item(const FunctionCallbackInfo<Value>& args) {
 static void get_request_cookie(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 2 || !args[0] -> IsNumber() || !args[1] -> IsString()) {
+    if(args.Length() < 2 || !args[0] -> IsObject() || !args[1] -> IsString()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int call_info_id = args[0] -> NumberValue();
-
-    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+    ice::Request *req = get_resource<ice::Request>(RESOURCE_TYPE_REQUEST, Local<Object>::Cast(args[0]));
+    if(!req) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid request"));
         return;
     }
 
-    Resource call_info = pending_call_info[call_info_id];
-    Resource req = ice_core_borrow_request_from_call_info(call_info);
-
     String::Utf8Value _key(args[1] -> ToString());
-    const char *value = ice_glue_request_get_cookie(req, *_key);
+    const char *value = ice_glue_request_get_cookie(req -> handle, *_key);
 
     args.GetReturnValue().Set(String::NewFromUtf8(isolate, value));
 }
@@ -539,45 +477,37 @@ static void get_request_cookie(const FunctionCallbackInfo<Value>& args) {
 static void get_stats_from_request(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 1 || !args[0] -> IsNumber()) {
+    if(args.Length() < 1 || !args[0] -> IsObject()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int call_info_id = args[0] -> NumberValue();
-
-    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+    ice::Request *req = get_resource<ice::Request>(RESOURCE_TYPE_REQUEST, Local<Object>::Cast(args[0]));
+    if(!req) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid request"));
         return;
     }
 
-    Resource call_info = pending_call_info[call_info_id];
-    Resource req = ice_core_borrow_request_from_call_info(call_info);
-
-    args.GetReturnValue().Set(String::NewFromUtf8(isolate, ice_glue_request_get_stats(req)));
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, ice_glue_request_get_stats(req -> handle)));
 }
 
 static void set_custom_stat(const FunctionCallbackInfo<Value>& args) {
     Isolate* isolate = args.GetIsolate();
 
-    if(args.Length() < 3 || !args[0] -> IsNumber() || !args[1] -> IsString() || !args[2] -> IsString()) {
+    if(args.Length() < 3 || !args[0] -> IsObject() || !args[1] -> IsString() || !args[2] -> IsString()) {
         isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid parameters"));
         return;
     }
 
-    unsigned int call_info_id = args[0] -> NumberValue();
-
-    if(call_info_id >= pending_call_info.size() || !pending_call_info[call_info_id]) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid call_info_id"));
+    ice::Request *req = get_resource<ice::Request>(RESOURCE_TYPE_REQUEST, Local<Object>::Cast(args[0]));
+    if(!req) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Invalid request"));
         return;
     }
 
-    Resource call_info = pending_call_info[call_info_id];
-    Resource req = ice_core_borrow_request_from_call_info(call_info);
-
     String::Utf8Value _k(args[1] -> ToString()), _v(args[2] -> ToString());
 
-    ice_glue_request_set_custom_stat(req, *_k, *_v);
+    ice_glue_request_set_custom_stat(req -> handle, *_k, *_v);
 }
 
 static void set_response_status(const FunctionCallbackInfo<Value>& args) {
