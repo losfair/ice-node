@@ -1,4 +1,11 @@
 const core = require("./build/Release/ice_node_core");
+/*const core = new Proxy({}, {
+    get: (t, k) => {
+        console.log(k);
+        return _core[k].bind(_core);
+    }
+});*/
+
 const stat = require("./stat.js");
 module.exports.static = require("./static.js");
 
@@ -481,7 +488,7 @@ Response.prototype.send = function (server, call_info) {
         return;
     }
 
-    let resp = core.create_response();
+    let resp = core.create_response(call_info);
     core.set_response_status(resp, this.status);
     for (const k in this.headers) {
         core.set_response_header(resp, k, this.headers[k]);

@@ -8,6 +8,7 @@
 #include <deque>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 #include <string.h>
 #include <unistd.h>
 #include <uv.h>
@@ -21,7 +22,7 @@ static void dispatch_task(uv_async_t *task_async);
 
 typedef std::function<void(Request)> DispatchTarget;
 typedef std::function<Response(Request)> SyncDispatchTarget;
-typedef std::function<void()> Task;
+typedef std::pair<int, Resource> Task;
 
 class Response {
     public:
@@ -175,19 +176,8 @@ class Server {
         }
 
         void async_endpoint_cb(int ep_id, Resource call_info) {
-            Request req(call_info);
-
-            auto target = dispatch_table[ep_id];
-            if(!target) {
-                //std::cerr << "Error: Calling an invalid endpoint: " << ep_id << std::endl;
-                req.create_response().set_status(404).set_body("Invalid endpoint").send();
-                return;
-            }
-
             pending_mutex.lock();
-            pending.push_back([=]() {
-                target(req);
-            });
+            pending.push_back(std::make_pair(ep_id, call_info));
             pending_mutex.unlock();
             uv_async_send(&task_async);
         }
@@ -199,12 +189,22 @@ class Server {
 
         void dispatch_task() {
             pending_mutex.lock();
-            std::deque<Task> current_tasks = pending;
-            pending.clear();
+            std::deque<Task> current_tasks = std::move(pending);
+            pending = std::deque<Task>();
             pending_mutex.unlock();
 
             for(auto& t : current_tasks) {
-                t();
+                int ep_id = t.first;
+                Resource call_info = t.second;
+                Request req(call_info);
+
+                auto target = dispatch_table[ep_id];
+                if(!target) {
+                    req.create_response().set_body("Invalid endpoint").send();
+                    continue;
+                }
+
+                target(req);
             }
         }
 };
