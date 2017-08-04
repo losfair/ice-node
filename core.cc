@@ -135,7 +135,8 @@ class Response : public node::ObjectWrap {
 
         ~Response() {
             if(!sent) {
-                _inst.set_status(500).set_body("Response dropped without sending").send();
+                std::cerr << "Warning: Response dropped without sending" << std::endl;
+                _inst.set_status(500).send();
             }
             reqObj.Reset();
         }
@@ -323,7 +324,8 @@ class Request : public node::ObjectWrap {
 
         ~Request() {
             if(!responseCreated) {
-                _inst.create_response().set_status(500).set_body("Request dropped without creating a Response").send();
+                std::cerr << "Warning: Request dropped without creating a Response" << std::endl;
+                _inst.create_response().set_status(500).send();
             }
         }
 

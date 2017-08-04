@@ -199,15 +199,16 @@ function generateEndpointHandler(mws, fn) {
 
         for(const mw of mws) {
             try {
-                // A middleware should not throw an exception unless it has sent the response.
+                // An exception from a middleware leads to a normal termination of the flow.
                 await mw(req, resp);
             } catch(e) {
+                resp.send();
                 return;
             }
         }
 
         try {
-            // Exceptions from endpoint handlers are handled properly.
+            // An exception from an endpoint handler leads to an abnormal termination.
             await fn(req, resp);
         } catch(e) {
             console.log(e);
