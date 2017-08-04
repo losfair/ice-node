@@ -14,7 +14,6 @@ extern "C" {
     Resource ice_create_server();
     Resource ice_server_listen(Resource handle, const char *addr);
     Resource ice_server_router_add_endpoint(Resource handle, const char *p);
-    void ice_server_set_static_dir(Resource handle, const char *d);
     void ice_server_set_session_cookie_name(Resource handle, const char *name);
     void ice_server_set_session_timeout_ms(Resource handle, u64 t);
     bool ice_server_add_template(Resource handle, const char *name, const char *content);
@@ -31,12 +30,14 @@ extern "C" {
     const char * ice_glue_request_get_uri(Resource req);
     const char * ice_glue_request_get_session_id(Resource req);
     const char * ice_glue_request_get_session_item(Resource req, const char *k);
+    const u8 * ice_glue_request_get_session_items(Resource req);
     void ice_glue_request_set_session_item(Resource req, const char *k, const char *v);
     const char * ice_glue_request_get_stats(Resource req);
     void ice_glue_request_set_custom_stat(Resource req, const char *k, const char *v);
-    void ice_glue_request_add_header(Resource t, const char *k, const char *v);
     const char * ice_glue_request_get_header(Resource t, const char *k);
+    const u8 * ice_glue_request_get_headers(Resource t);
     const char * ice_glue_request_get_cookie(Resource t, const char *k);
+    const u8 * ice_glue_request_get_cookies(Resource t);
     const u8 * ice_glue_request_get_body(Resource t, u32 *len_out);
     char * ice_glue_request_render_template_to_owned(Resource t, const char *name, const char *data);
     Resource ice_glue_request_borrow_context(Resource t);
@@ -51,8 +52,7 @@ extern "C" {
     void ice_glue_response_set_status(Resource t, u16 status);
     bool ice_glue_response_consume_rendered_template(Resource t, char *output);
     void ice_glue_response_add_header(Resource t, const char *k, const char *v);
-    const char * ice_glue_response_get_header(Resource t, const char *k);
-    void ice_glue_response_set_cookie(Resource t, const char *k, const char *v, const char *options);
+    void ice_glue_response_set_cookie(Resource t, const char *k, const char *v);
     Resource ice_glue_response_stream(Resource t, Resource ctx);
 
     bool ice_core_fire_callback(Resource call_info, Resource resp);
