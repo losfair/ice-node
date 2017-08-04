@@ -14,7 +14,6 @@ using namespace v8;
 
 class Request : public node::ObjectWrap {
     private:
-        ice::Request _inst;
         bool responseCreated;
 
         explicit Request(ice::Request& from) : _inst(from) {
@@ -42,6 +41,8 @@ class Request : public node::ObjectWrap {
         static void CreateResponse(const v8::FunctionCallbackInfo<v8::Value>& args);
     
     public:
+        ice::Request _inst;
+
         static Local<Object> Create(Isolate *isolate, ice::Request& from);
         static void Init(Isolate *isolate);
 };

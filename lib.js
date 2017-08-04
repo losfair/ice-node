@@ -41,11 +41,18 @@ Application.prototype.route = function(methods, p, fn) {
     methods.map(v => v.toUpperCase()).forEach(m => {
         this.routes[m + " " + p] = fn;
     });
+    return this;
 }
 
 Application.prototype.use = function(p, fn) {
     if(!this.middlewares[p]) this.middlewares[p] = [];
     this.middlewares[p].push(fn);
+    return this;
+}
+
+Application.prototype.addTemplate = function(name, content) {
+    this.server.addTemplate(name, content);
+    return this;
 }
 
 Application.prototype.prepare = function() {
@@ -175,6 +182,11 @@ Response.prototype.header = function(k, v) {
 
 Response.prototype.cookie = function(k, v) {
     this.inst.cookie(k, v);
+    return this;
+}
+
+Response.prototype.renderTemplate = function(name, data) {
+    this.inst.renderTemplate(name, JSON.stringify(data));
     return this;
 }
 

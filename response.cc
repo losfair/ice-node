@@ -134,6 +134,28 @@ void Response::Body(const v8::FunctionCallbackInfo<v8::Value>& args) {
     resp -> _inst.set_body(data, dataLen);
 }
 
+void Response::RenderTemplate(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    Response *resp = node::ObjectWrap::Unwrap<Response>(args.Holder());
+
+    Local<Object> localReqObj = Local<Object>::New(isolate, resp -> reqObj);
+    Request *req = node::ObjectWrap::Unwrap<Request>(localReqObj);
+
+    if(!req) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Response::RenderTemplate: Internal error: Unable to get Request object"));
+        return;
+    }
+
+    String::Utf8Value name(args[0] -> ToString());
+    String::Utf8Value data(args[1] -> ToString());
+
+    bool ret = req -> _inst.render_template(resp -> _inst, *name, *data);
+    if(!ret) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Response::RenderTemplate: Failed"));
+        return;
+    }
+}
+
 void Response::Send(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Response *resp = node::ObjectWrap::Unwrap<Response>(args.Holder());
@@ -175,6 +197,7 @@ void Response::Init(Isolate *isolate) {
     NODE_SET_PROTOTYPE_METHOD(tpl, "cookie", Cookie);
     NODE_SET_PROTOTYPE_METHOD(tpl, "stream", Stream);
     NODE_SET_PROTOTYPE_METHOD(tpl, "send", Send);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "renderTemplate", RenderTemplate);
 
     _response_constructor.Reset(isolate, tpl -> GetFunction());
 }

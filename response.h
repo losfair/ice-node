@@ -42,6 +42,7 @@ class Response : public node::ObjectWrap {
         static void Stream(const v8::FunctionCallbackInfo<v8::Value>& args);
         static void Body(const v8::FunctionCallbackInfo<v8::Value>& args);
         static void Send(const v8::FunctionCallbackInfo<v8::Value>& args);
+        static void RenderTemplate(const v8::FunctionCallbackInfo<v8::Value>& args);
     
     public:
         static Local<Object> Create(Isolate *isolate, ice::Response& from, Local<Object> _reqObj, ice::Context& ctx);

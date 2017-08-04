@@ -98,6 +98,20 @@ class Server : public node::ObjectWrap {
             }, flags);
         }
 
+        static void AddTemplate(const FunctionCallbackInfo<Value>& args) {
+            Isolate *isolate = args.GetIsolate();
+            Server *s = node::ObjectWrap::Unwrap<Server>(args.Holder());
+
+            String::Utf8Value name(args[0] -> ToString());
+            String::Utf8Value content(args[1] -> ToString());
+
+            bool ret = s -> _inst.add_template(*name, *content);
+            if(!ret) {
+                isolate -> ThrowException(String::NewFromUtf8(isolate, "Server::AddTemplate: Failed"));
+                return;
+            }
+        }
+
         static void Listen(const FunctionCallbackInfo<Value>& args) {
             Isolate *isolate = args.GetIsolate();
             Server *s = node::ObjectWrap::Unwrap<Server>(args.Holder());
@@ -118,6 +132,7 @@ class Server : public node::ObjectWrap {
             tpl -> InstanceTemplate() -> SetInternalFieldCount(1);
 
             NODE_SET_PROTOTYPE_METHOD(tpl, "route", Route);
+            NODE_SET_PROTOTYPE_METHOD(tpl, "addTemplate", AddTemplate);
             NODE_SET_PROTOTYPE_METHOD(tpl, "listen", Listen);
 
             _server_constructor.Reset(isolate, tpl -> GetFunction());
