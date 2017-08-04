@@ -4,11 +4,20 @@ let server = new core.Server({
     disable_request_logging: true
 });
 server.route("/hello_world", req => {
-    req.createResponse().send();
+    let resp = req.createResponse();
+    resp.body(Buffer.from("Hello world!"));
+    resp.send();
 });
 server.route("/leak_request", req => {
 });
 server.route("/leak_response", req => {
     req.createResponse();
 });
+server.route("/stream", req => {
+    let resp = req.createResponse();
+    let stream = resp.stream();
+    resp.send();
+    stream.write(Buffer.from("Hello world! (Stream)"));
+    stream.close();
+})
 server.listen("127.0.0.1:9132");
