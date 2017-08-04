@@ -1,3 +1,6 @@
+#ifndef _ICE_H_
+#define _ICE_H_
+
 #include <iostream>
 #include <thread>
 #include <vector>
@@ -436,3 +439,5 @@ static void dispatch_task(uv_async_t *task_async) {
 }
 
 } // namespace ice
+
+#endif
