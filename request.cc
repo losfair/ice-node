@@ -36,8 +36,8 @@ void Request::RemoteAddr(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
 
-    if(req -> responseCreated) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is created"));
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
         return;
     }
 
@@ -48,8 +48,8 @@ void Request::Method(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
 
-    if(req -> responseCreated) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is created"));
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
         return;
     }
 
@@ -60,8 +60,8 @@ void Request::Uri(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
 
-    if(req -> responseCreated) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is created"));
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
         return;
     }
 
@@ -72,8 +72,8 @@ void Request::SessionItem(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
 
-    if(req -> responseCreated) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is created"));
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
         return;
     }
 
@@ -83,7 +83,12 @@ void Request::SessionItem(const v8::FunctionCallbackInfo<v8::Value>& args) {
         String::Utf8Value value(args[1] -> ToString());
         req -> _inst.set_session_item(*key, *value);
     } else {
-        args.GetReturnValue().Set(String::NewFromUtf8(isolate, req -> _inst.get_session_item(*key)));
+        const char *v = req -> _inst.get_session_item(*key);
+        if(v) {
+            args.GetReturnValue().Set(String::NewFromUtf8(isolate, v));
+        } else {
+            args.GetReturnValue().Set(Null(isolate));
+        }
     }
 }
 
@@ -91,8 +96,8 @@ void Request::SessionItems(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
 
-    if(req -> responseCreated) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is created"));
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
         return;
     }
 
@@ -110,8 +115,8 @@ void Request::Header(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
 
-    if(req -> responseCreated) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is created"));
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
         return;
     }
 
@@ -124,8 +129,8 @@ void Request::Headers(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
 
-    if(req -> responseCreated) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is created"));
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
         return;
     }
 
@@ -143,8 +148,8 @@ void Request::Cookie(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
 
-    if(req -> responseCreated) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is created"));
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
         return;
     }
 
@@ -157,8 +162,8 @@ void Request::Cookies(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
 
-    if(req -> responseCreated) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is created"));
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
         return;
     }
 
@@ -176,8 +181,8 @@ void Request::Body(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
 
-    if(req -> responseCreated) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is created"));
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
         return;
     }
 
@@ -203,7 +208,7 @@ void Request::CreateResponse(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
 
     if(req -> responseCreated) {
-        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is created"));
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Cannot create more than one response from one request"));
         return;
     }
 

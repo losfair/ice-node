@@ -167,6 +167,16 @@ void Response::Send(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
     resp -> sent = true;
 
+    Local<Object> localReqObj = Local<Object>::New(isolate, resp -> reqObj);
+    Request *req = node::ObjectWrap::Unwrap<Request>(localReqObj);
+
+    if(!req) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Response::Send: Internal error: Unable to get Request object"));
+        return;
+    }
+
+    req -> responseSent = true;
+
     resp -> _inst.send();
 }
 

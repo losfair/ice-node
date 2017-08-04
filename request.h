@@ -13,11 +13,15 @@ namespace ice_node {
 using namespace v8;
 
 class Request : public node::ObjectWrap {
+    public:
+        bool responseSent;
+
     private:
         bool responseCreated;
 
         explicit Request(ice::Request& from) : _inst(from) {
             responseCreated = false;
+            responseSent = false;
         }
 
         ~Request() {

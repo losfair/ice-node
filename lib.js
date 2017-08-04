@@ -10,29 +10,9 @@ function Application(cfg) {
 
     this.server = new core.Server(cfg);
     this.routes = {};
-    this.middlewares = {};
+    this.flags = [];
+    this.middlewares = [];
     this.prepared = false;
-}
-
-// Dynamic dispatch, O(n)
-Application.prototype.defaultRouteHandler = async function(req) {
-    let uri = req.uri();
-
-    for(const p in this.middlewares) {
-        if(uri.startsWith(p)) {
-            const mw = this.middlewares[p];
-            try {
-                await mw(req);
-            } catch(e) {
-                // TODO...
-                return;
-            }
-        }
-    }
-
-    let resp = req.createResponse();
-    resp.status(404);
-    resp.send();
 }
 
 Application.prototype.route = function(methods, p, fn) {
@@ -44,9 +24,36 @@ Application.prototype.route = function(methods, p, fn) {
     return this;
 }
 
+Application.prototype.get = function(p, fn) {
+    return this.route("GET", p, fn);
+}
+
+Application.prototype.post = function(p, fn) {
+    this.use(p, new Flag("read_body"));
+    return this.route("POST", p, fn);
+}
+
+Application.prototype.put = function(p, fn) {
+    this.use(p, new Flag("read_body"));
+    return this.route("PUT", p, fn);
+}
+
+Application.prototype.delete = function(p, fn) {
+    return this.route("DELETE", p, fn);
+}
+
 Application.prototype.use = function(p, fn) {
-    if(!this.middlewares[p]) this.middlewares[p] = [];
-    this.middlewares[p].push(fn);
+    if(fn instanceof Flag) {
+        this.flags.push({
+            prefix: p,
+            name: fn.name
+        });
+    } else {
+        this.middlewares.push({
+            prefix: p,
+            handler: fn
+        });
+    }
     return this;
 }
 
@@ -63,19 +70,17 @@ Application.prototype.prepare = function() {
     let routes = {};
 
     for(const k in this.routes) {
-        let mws = [];
         const p = k.split(" ")[1];
-        for(const m in this.middlewares) {
-            if(p.startsWith(m)) {
-                mws.push(this.middlewares[m]);
-            }
-        }
+        let mws = this.middlewares.filter(v => p.startsWith(v.prefix));
+
         if(!routes[p]) routes[p] = {};
         routes[p][k.split(" ")[0]] = generateEndpointHandler(mws, this.routes[k]);
     }
 
     for(const p in routes) {
         let methodRoutes = routes[p];
+        let flags = this.flags.filter(v => p.startsWith(v.prefix)).map(v => v.name);
+
         this.server.route(p, function(req) {
             let rt = methodRoutes[req.method()];
             if(rt) {
@@ -85,10 +90,10 @@ Application.prototype.prepare = function() {
                 resp.status(405);
                 resp.send();
             }
-        });
+        }, flags);
     }
 
-    this.server.route("", this.defaultRouteHandler.bind(this));
+    this.server.route("", generateEndpointHandler(this.middlewares, (req, resp) => resp.status(404)));
 
     this.prepared = true;
     this.route = null;
@@ -112,14 +117,59 @@ function Request(inst) {
 
     this.inst = inst;
     this.cache = {
+        uri: null,
+        url: null,
         headers: null,
         cookies: null
     };
+
+    this.session = new Proxy({}, {
+        get: (t, k) => this.inst.sessionItem(k),
+        set: (t, k, v) => this.inst.sessionItem(k, v)
+    });
 }
 
 Request.prototype.createResponse = function () {
     return new Response(this);
 }
+
+Request.prototype.body = function() {
+    return this.inst.body();
+}
+
+Request.prototype.json = function() {
+    let body = this.body();
+    if(body) {
+        return JSON.parse(body);
+    } else {
+        return null;
+    }
+}
+
+Request.prototype.form = function () {
+    let body = this.body();
+    if (!body) return null;
+
+    let form = {};
+    try {
+        body.toString().split("&").filter(v => v).map(v => v.split("=")).forEach(p => form[p[0]] = p[1]);
+        return form;
+    } catch (e) {
+        throw new Error("Request body is not valid urlencoded form");
+    }
+}
+
+Object.defineProperty(Request.prototype, "uri", {
+    get: function() {
+        return this.cache.uri || (this.cache.uri = this.inst.uri())
+    }
+});
+
+Object.defineProperty(Request.prototype, "url", {
+    get: function() {
+        return this.cache.url || (this.cache.url = this.uri.split("?")[0])
+    }
+});
 
 Object.defineProperty(Request.prototype, "headers", {
     get: function() {
@@ -163,6 +213,10 @@ Response.prototype.body = function(data) {
 
     this.inst.body(data);
     return this;
+}
+
+Response.prototype.json = function(data) {
+    return this.body(JSON.stringify(data));
 }
 
 Response.prototype.file = function(p) {
@@ -210,9 +264,13 @@ function generateEndpointHandler(mws, fn) {
         let resp = req.createResponse();
 
         for(const mw of mws) {
+            // For dynamic dispatch
+            if(!req.uri.startsWith(mw.prefix)) {
+                continue;
+            }
             try {
                 // An exception from a middleware leads to a normal termination of the flow.
-                await mw(req, resp);
+                await mw.handler(req, resp, mw);
             } catch(e) {
                 resp.send();
                 return;
@@ -231,3 +289,16 @@ function generateEndpointHandler(mws, fn) {
         if(!resp.detached) resp.send();
     }
 }
+
+
+module.exports.Flag = Flag;
+
+function Flag(name) {
+    if(!(this instanceof Flag)) {
+        return new Flag(...arguments);
+    }
+
+    this.name = name;
+}
+
+module.exports.static = require("./static.js");

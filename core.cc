@@ -31,6 +31,33 @@ class Server : public node::ObjectWrap {
                     _inst.disable_request_logging();
                 }
             }
+
+            Local<Value> opt_session_timeout_ms = options -> Get(String::NewFromUtf8(isolate, "session_timeout_ms"));
+            if(opt_session_timeout_ms -> IsNumber()) {
+                u64 t = opt_session_timeout_ms -> NumberValue();
+                _inst.set_session_timeout_ms(t);
+            }
+
+            Local<Value> opt_session_cookie = options -> Get(String::NewFromUtf8(isolate, "session_cookie"));
+            if(opt_session_cookie -> IsString()) {
+                String::Utf8Value _name(opt_session_cookie -> ToString());
+                const char *name = *_name;
+                if(name[0]) {
+                    _inst.set_session_cookie_name(name);
+                }
+            }
+
+            Local<Value> opt_max_request_body_size = options -> Get(String::NewFromUtf8(isolate, "max_request_body_size"));
+            if(opt_max_request_body_size -> IsNumber()) {
+                u32 size = opt_max_request_body_size -> NumberValue();
+                _inst.set_max_request_body_size(size);
+            }
+
+            Local<Value> opt_endpoint_timeout_ms = options -> Get(String::NewFromUtf8(isolate, "endpoint_timeout_ms"));
+            if(opt_endpoint_timeout_ms -> IsNumber()) {
+                u64 t = opt_endpoint_timeout_ms -> NumberValue();
+                _inst.set_endpoint_timeout_ms(t);
+            }
         }
 
         static void New(const v8::FunctionCallbackInfo<v8::Value>& args) {

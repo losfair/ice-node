@@ -1,7 +1,7 @@
 const lib = require("../lib.js");
 const path = require("path");
 
-let app = new lib.Ice({
+let app = new lib.Application({
     max_request_body_size: 100000
 });
 
@@ -12,68 +12,73 @@ function sleep(ms) {
 let template = `
 <p>Template OK: {{ param }}</p>
 `.trim();
-app.add_template("test.html", template);
+app.addTemplate("test.html", template);
 
 let my_path = path.join(__dirname, "server.js");
 
 app.use("/files/", lib.static(__dirname));
 
-app.get("/get/sync", req => {
-    return "OK";
+app.get("/get/sync", (req, resp) => {
+    resp.body("OK");
 });
 
-app.get("/get/async_immediate", async req => {
-    return "OK";
+app.get("/get/async_immediate", async (req, resp) => {
+    resp.body("OK");
 });
 
-app.get("/get/async_delayed/:time", async req => {
+app.get("/get/async_delayed/:time", async (req, resp) => {
+    resp.body("Not implemented");
+    /*
     let t = parseInt(req.params.time);
     await sleep(t);
-    return "OK";
+    resp.body("OK");
+    */
 });
 
-app.post("/post/echo/raw", req => {
-    return req.body();
+app.post("/post/echo/raw", (req, resp) => {
+    resp.body(req.body());
 });
 
-app.post("/post/echo/json", req => {
-    return lib.Response.json(req.json());
+app.post("/post/echo/json", (req, resp) => {
+    resp.json(req.json());
 });
 
-app.post("/post/echo/form_to_json", req => {
-    return lib.Response.json(req.form());
+app.post("/post/echo/form_to_json", (req, resp) => {
+    resp.json(req.form());
 });
 
 app.use("/session", new lib.Flag("init_session"));
-app.get("/session", req => {
+app.get("/session", (req, resp) => {
     let count = req.session.count || "0";
     req.session.count = "" + (parseInt(count) + 1);
-    return count.toString();
+    resp.body(count.toString());
 });
 
-app.get("/exception/sync", req => {
+app.get("/exception/sync", (req, resp) => {
     throw new Error("Sync exception");
 });
 
-app.get("/exception/async_immediate", async req => {
+app.get("/exception/async_immediate", async (req, resp) => {
     throw new Error("Async exception (immediate)");
 });
 
-app.get("/exception/async_delayed/:time", async req => {
+app.get("/exception/async_delayed/:time", async (req, resp) => {
+    resp.body("Not implemented");
+    /*
     let t = parseInt(req.params.time);
     await sleep(t);
     throw new Error("Async exception (delayed)");
+    */
 });
 
-app.get("/template/:param", req => {
-    return new lib.Response({
-        template_name: "test.html",
-        template_params: {
-            param: req.params.param
-        }
+app.get("/template/:param", (req, resp) => {
+    resp.renderTemplate("test.html", {
+        //param: req.params.param
+        param: req.url.split("/").pop()
     });
 });
 
-app.get("/code", req => lib.Response.file(my_path));
+app.get("/code", (req, resp) => resp.file(my_path));
 
+app.prepare();
 app.listen("127.0.0.1:5329");
