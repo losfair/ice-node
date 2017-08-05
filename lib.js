@@ -17,9 +17,30 @@ function Application(cfg) {
 
 Application.prototype.route = function(methods, p, fn) {
     if(typeof(methods) == "string") methods = [ methods ];
+    let param_mappings = p.split("/").filter(v => v).map(v => v.startsWith(":") ? v.substr(1) : null);
+
+    let target;
+    if(param_mappings.filter(v => v).length) {
+        target = (req, resp) => {
+            try {
+                let params = {};
+                req.url.split("/").filter(v => v).map((v, index) => [param_mappings[index], v]).forEach(p => {
+                    if (p[0]) {
+                        params[p[0]] = p[1];
+                    }
+                });
+                req.params = params;
+            } catch (e) {
+                req.params = {};
+            }
+            return fn(req, resp);
+        };
+    } else {
+        target = fn;
+    }
 
     methods.map(v => v.toUpperCase()).forEach(m => {
-        this.routes[m + " " + p] = fn;
+        this.routes[m + " " + p] = target;
     });
     return this;
 }
@@ -122,6 +143,7 @@ function Request(inst) {
         headers: null,
         cookies: null
     };
+    this.params = {};
 
     this.session = new Proxy({}, {
         get: (t, k) => this.inst.sessionItem(k),

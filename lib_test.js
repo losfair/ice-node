@@ -13,6 +13,9 @@ app.addTemplate("test.html", template);
 app.route("GET", "/hello_world", (req, resp) => {
     resp.body("Hello world!");
 });
+app.route("GET", "/echo_param/:p", (req, resp) => {
+    resp.body(req.params.p);
+});
 
 app.route("GET", "/hello_world_detached", (req, resp) => {
     resp.detach();

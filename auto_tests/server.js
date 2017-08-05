@@ -27,12 +27,9 @@ app.get("/get/async_immediate", async (req, resp) => {
 });
 
 app.get("/get/async_delayed/:time", async (req, resp) => {
-    resp.body("Not implemented");
-    /*
     let t = parseInt(req.params.time);
     await sleep(t);
     resp.body("OK");
-    */
 });
 
 app.post("/post/echo/raw", (req, resp) => {
@@ -63,18 +60,14 @@ app.get("/exception/async_immediate", async (req, resp) => {
 });
 
 app.get("/exception/async_delayed/:time", async (req, resp) => {
-    resp.body("Not implemented");
-    /*
     let t = parseInt(req.params.time);
     await sleep(t);
     throw new Error("Async exception (delayed)");
-    */
 });
 
 app.get("/template/:param", (req, resp) => {
     resp.renderTemplate("test.html", {
-        //param: req.params.param
-        param: req.url.split("/").pop()
+        param: req.params.param
     });
 });
 

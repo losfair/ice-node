@@ -18,7 +18,6 @@ async function run() {
     console.log("Testing GET (Async, immediate)");
     assert((await rp.get(REMOTE + "/get/async_immediate")) == "OK");
 
-    /*
     console.log("Testing GET (Async, delayed 100ms)");
     let t1 = Date.now();
     assert((await rp.get(REMOTE + "/get/async_delayed/100")) == "OK");
@@ -27,7 +26,6 @@ async function run() {
     if(Math.abs((t2 - t1) - 100) > 20) {
         throw new Error("Incorrect delay time");
     }
-    */
 
     console.log("Testing POST (echo, raw)");
     assert((await rp.post(REMOTE + "/post/echo/raw", {
@@ -110,7 +108,6 @@ async function run() {
     }
     if(!ok) throw new Error("Exception not handled properly");
 
-    /*
     console.log("Testing exception handling (Async, delayed 100ms)");
     ok = false;
     t1 = Date.now();
@@ -126,7 +123,6 @@ async function run() {
         ok = true;
     }
     if(!ok) throw new Error("Exception not handled properly");
-    */
 
     console.log("Testing template rendering");
     assert((await rp.get(REMOTE + "/template/" + template_param)) == expected_rendered_template);
