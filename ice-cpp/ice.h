@@ -2,6 +2,7 @@
 #define _ICE_H_
 
 #include <iostream>
+#include <fstream>
 #include <thread>
 #include <vector>
 #include <string>
@@ -313,6 +314,23 @@ class Server {
 
         void listen(const char *addr) {
             ice_server_listen(handle, addr);
+        }
+
+        bool load_bitcode(const char *name, const u8 *data, u32 len) {
+            return ice_server_cervus_load_bitcode(handle, name, data, len);
+        }
+
+        bool load_bitcode_from_file(const char *name, const char *path) {
+            std::ifstream file(path, std::ios::binary | std::ios::ate);
+            std::streamsize size = file.tellg();
+            file.seekg(0, std::ios::beg);
+
+            std::vector<char> buffer(size);
+            if(file.read(buffer.data(), size)) {
+                return load_bitcode(name, (const u8 *) &buffer[0], size);
+            } else {
+                return false;
+            }
         }
 
         void add_endpoint(const char *path, DispatchTarget handler, std::vector<std::string>& flags) {
