@@ -65,6 +65,8 @@ app.get("/exception/async_delayed/:time", async (req, resp) => {
     throw new Error("Async exception (delayed)");
 });
 
+app.get("/echo_params/:a/:b", (req, resp) => resp.body(req.params.a + " " + req.params.b));
+
 app.get("/template/:param", (req, resp) => {
     resp.renderTemplate("test.html", {
         param: req.params.param
