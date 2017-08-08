@@ -138,6 +138,33 @@ class Server : public node::ObjectWrap {
                 return;
             }
         }
+        
+        static void LoadCervusModule(const FunctionCallbackInfo<Value>& args) {
+            Isolate *isolate = args.GetIsolate();
+            Server *s = node::ObjectWrap::Unwrap<Server>(args.Holder());
+
+            if(!args[0] -> IsString() || !args[1] -> IsObject()) {
+                isolate -> ThrowException(String::NewFromUtf8(isolate, "Server::LoadCervusModule: String and buffer required"));
+                return;
+            }
+
+            String::Utf8Value name(args[0] -> ToString());
+            Local<Object> bufObj = Local<Object>::Cast(args[1]);
+
+            u8 *data = (u8 *) node::Buffer::Data(bufObj);
+            u32 dataLen = node::Buffer::Length(bufObj);
+
+            if(!data) {
+                isolate -> ThrowException(String::NewFromUtf8(isolate, "Server::LoadCervusModule: Invalid buffer"));
+                return;
+            }
+
+            bool ret = s -> _inst.load_bitcode(*name, data, dataLen);
+            if(!ret) {
+                isolate -> ThrowException(String::NewFromUtf8(isolate, "Server::LoadCervusModule: Failed"));
+                return;
+            }
+        }
 
         static void Listen(const FunctionCallbackInfo<Value>& args) {
             Isolate *isolate = args.GetIsolate();
@@ -160,6 +187,7 @@ class Server : public node::ObjectWrap {
 
             NODE_SET_PROTOTYPE_METHOD(tpl, "route", Route);
             NODE_SET_PROTOTYPE_METHOD(tpl, "addTemplate", AddTemplate);
+            NODE_SET_PROTOTYPE_METHOD(tpl, "loadCervusModule", LoadCervusModule);
             NODE_SET_PROTOTYPE_METHOD(tpl, "listen", Listen);
 
             _server_constructor.Reset(isolate, tpl -> GetFunction());

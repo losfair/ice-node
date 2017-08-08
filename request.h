@@ -42,6 +42,7 @@ class Request : public node::ObjectWrap {
         static void Cookie(const v8::FunctionCallbackInfo<v8::Value>& args);
         static void Cookies(const v8::FunctionCallbackInfo<v8::Value>& args);
         static void Body(const v8::FunctionCallbackInfo<v8::Value>& args);
+        static void CustomProperty(const v8::FunctionCallbackInfo<v8::Value>& args);
         static void CreateResponse(const v8::FunctionCallbackInfo<v8::Value>& args);
     
     public:

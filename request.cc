@@ -1,3 +1,4 @@
+#include <string>
 #include <node.h>
 #include <node_buffer.h>
 #include <node_object_wrap.h>
@@ -203,6 +204,22 @@ void Request::Body(const v8::FunctionCallbackInfo<v8::Value>& args) {
     args.GetReturnValue().Set(maybeBuf.ToLocalChecked());
 }
 
+void Request::CustomProperty(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
+
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
+        return;
+    }
+
+    String::Utf8Value key(args[0] -> ToString());
+    auto cp = req -> _inst.borrow_custom_properties();
+
+    std::string v = cp.get(*key);
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, v.c_str()));
+}
+
 void Request::CreateResponse(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
@@ -247,6 +264,7 @@ void Request::Init(Isolate *isolate) {
     NODE_SET_PROTOTYPE_METHOD(tpl, "cookie", Cookie);
     NODE_SET_PROTOTYPE_METHOD(tpl, "cookies", Cookies);
     NODE_SET_PROTOTYPE_METHOD(tpl, "body", Body);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "customProperty", CustomProperty);
     NODE_SET_PROTOTYPE_METHOD(tpl, "createResponse", CreateResponse);
 
     _request_constructor.Reset(isolate, tpl -> GetFunction());

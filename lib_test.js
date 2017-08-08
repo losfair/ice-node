@@ -1,3 +1,4 @@
+const fs = require("fs");
 const ice = require("./lib.js");
 
 const app = new ice.Application({
@@ -8,6 +9,8 @@ let template = `
 <p>Template OK: {{ param }}</p>
 `.trim();
 
+app.loadCervusModule("test", fs.readFileSync("test_module.bc"));
+
 app.addTemplate("test.html", template);
 
 app.route("GET", "/hello_world", (req, resp) => {
@@ -16,6 +19,7 @@ app.route("GET", "/hello_world", (req, resp) => {
 app.route("GET", "/echo_param/:p", (req, resp) => {
     resp.body(req.params.p);
 });
+app.route("GET", "/request_id", (req, resp) => resp.body(req.custom.request_id));
 
 app.route("GET", "/hello_world_detached", (req, resp) => {
     resp.detach();

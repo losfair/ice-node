@@ -83,6 +83,10 @@ Application.prototype.addTemplate = function(name, content) {
     return this;
 }
 
+Application.prototype.loadCervusModule = function(name, data) {
+    this.server.loadCervusModule(name, data);
+}
+
 Application.prototype.prepare = function() {
     if(this.prepared) {
         throw new Error("Application.prepare: Already prepared");
@@ -148,6 +152,10 @@ function Request(inst) {
     this.session = new Proxy({}, {
         get: (t, k) => this.inst.sessionItem(k),
         set: (t, k, v) => this.inst.sessionItem(k, v)
+    });
+
+    this.custom = new Proxy({}, {
+        get: (t, k) => this.inst.customProperty(k)
     });
 }
 
