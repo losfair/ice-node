@@ -26,6 +26,13 @@ app.route("GET", "/hello_world_detached", (req, resp) => {
     setImmediate(() => resp.body("Hello world! (Detached)").send());
 });
 
+app.route("GET", "/hello_world_stream", (req, resp) => {
+    resp.stream(stream => {
+        stream.write(Buffer.from("Hello world! (stream)"));
+        stream.close();
+    });
+});
+
 app.route("GET", "/leak_request", (req, resp) => resp.detach());
 
 app.route("GET", "/render_template", (req, resp) => resp.renderTemplate("test.html", {
