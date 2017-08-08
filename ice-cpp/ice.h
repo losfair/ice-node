@@ -137,6 +137,26 @@ class Context {
         }
 };
 
+class CustomProperties {
+    private:
+        Resource handle;
+    
+    public:
+        CustomProperties(Resource _handle) {
+            handle = _handle;
+        }
+
+        inline std::string get(const char *k) {
+            const char *v = ice_glue_custom_properties_get(handle, k);
+            if(!v) v = "";
+            return std::string(v);
+        }
+
+        inline void set(const char *k, const char *v) {
+            ice_glue_custom_properties_set(handle, k, v);
+        }
+};
+
 class Response {
     private:
         Resource call_info;
@@ -215,6 +235,10 @@ class Request {
 
         inline Context get_context() {
             return Context(ice_glue_request_borrow_context(handle));
+        }
+
+        inline CustomProperties borrow_custom_properties() {
+            return CustomProperties(ice_glue_request_borrow_custom_properties(handle));
         }
 
         inline const char * get_remote_addr() {

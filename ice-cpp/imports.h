@@ -50,6 +50,7 @@ const u8 * ice_glue_request_get_cookies(Resource t);
 const u8 * ice_glue_request_get_body(Resource t, u32 *len_out);
 char * ice_glue_request_render_template_to_owned(Resource t, const char *name, const char *data);
 Resource ice_glue_request_borrow_context(Resource t);
+Resource ice_glue_request_borrow_custom_properties(Resource t);
 
 Resource ice_glue_request_create_header_iterator(Resource t);
 const char * ice_glue_request_header_iterator_next(Resource t, Resource itr_p);
@@ -63,6 +64,9 @@ bool ice_glue_response_consume_rendered_template(Resource t, char *output);
 void ice_glue_response_add_header(Resource t, const char *k, const char *v);
 void ice_glue_response_set_cookie(Resource t, const char *k, const char *v);
 Resource ice_glue_response_stream(Resource t, Resource ctx);
+
+void ice_glue_custom_properties_set(Resource cp, const char *k, const char *v);
+const char * ice_glue_custom_properties_get(Resource cp, const char *k);
 
 bool ice_core_fire_callback(Resource call_info, Resource resp);
 Resource ice_core_borrow_request_from_call_info(Resource call_info);

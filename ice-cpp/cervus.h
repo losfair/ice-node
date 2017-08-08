@@ -8,6 +8,7 @@ struct BasicRequestInfo {
     const char *remote_addr;
     const char *method;
     Resource response;
+    Resource custom_properties;
 };
 
 typedef void (*ContextInitHookFn)(Memory mem, Resource ctx);
@@ -25,5 +26,18 @@ struct ModuleInitConfig {
     RequestHookFn request_hook;
     ResponseHookFn response_hook;
 };
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void cervus_log(const char *msg);
+void cervus_info(const char *msg);
+void cervus_warning(const char *msg);
+void cervus_error(const char *msg);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
