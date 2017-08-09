@@ -1,3 +1,5 @@
+**This documentation is for v0.2.x. The latest documentation for v0.3.x is not ready yet.**
+
 Ice-node is the **fastest** framework for building node web applications, based on [Ice Core](https://github.com/losfair/IceCore).
 
 [![Build Status](https://travis-ci.org/losfair/ice-node.svg?branch=master)](https://travis-ci.org/losfair/ice-node)
@@ -8,17 +10,15 @@ Ice-node is the **fastest** framework for building node web applications, based 
 
 ### Fast
 
-Ice-node is based on Ice Core, which is written in Rust and C++ and provides high-performance abstractions for the Web.
+Ice-node is based on Ice Core, which is written in Rust and provides high-performance abstractions for the Web.
 
-When serving the "Hello world!" text, Ice-node is about 10% faster than the raw Node.js http implementation, 80% than Koa, and 100% than Express, while providing full routing support.
+When serving the "Hello world!" text, Ice-node is about 70% faster than the raw Node.js http implementation, while providing full routing support.
 
 ##### Requests per second, higher is better
 
-![Benchmark Result](http://i.imgur.com/TkV8IxE.png)
+![Benchmark result](https://i.imgur.com/4uBIYMC.png)
 
-[Raw Results](https://gist.github.com/losfair/066b04978d6a5b27418d85a6305ecd5c)
-
-For practical applications that do database queries and some logic, Ice-node is also at least 30% faster than Express.
+For practical applications that do database queries and some logic, Ice-node is also at least 30% faster than traditional Node web frameworks like Express.
 
 We wrote a [test application](https://github.com/losfair/ice-node-perf-tests) that simulates some common API services like login and data fetching and do MongoDB queries when processing requests,
 and fire up 500 concurrent clients, each doing 101 requests:
@@ -36,10 +36,11 @@ Ice-node makes use of ES6 and later features like async functions to provide a b
 A simple server using Ice-node looks like this:
 
     const ice = require("ice-node");
-    const app = new ice.Ice();
+    const app = new ice.Application();
 
-    app.get("/", req => "Hello world!");
+    app.get("/", (req, resp) => resp.body("Hello world!"));
 
+    app.prepare();
     app.listen("127.0.0.1:3535");
 
 # Install
@@ -56,7 +57,7 @@ You can quickly install a supported version of node with your favorite version m
 
 # Application
 
-With `const app = new ice.Ice()`, you creates an Ice-node **Application** - an object describing how requests will be handled and how your data will be presented to users,
+With `const app = new ice.Application()`, you creates an Ice-node **Application** - an object describing how requests will be handled and how your data will be presented to users,
 containing arrays of `routes`, `middlewares`, key-value mappings of `templates`, and a `config` object.
 
 Every middleware and routing endpoint will receive a `Request` object once reached, providing access to details of the request, including URL, params, headers, cookies, remote address, method and body.
@@ -66,8 +67,9 @@ A simple app that responds with the `text` param:
     const ice = require("ice-node");
     const app = new ice.Ice();
 
-    app.get("/:text", req => req.params.text);
+    app.get("/:text", (req, resp) => resp.body(req.params.text));
 
+    app.prepare();
     app.listen("127.0.0.1:3536");
 
 ### The Request object
@@ -79,18 +81,15 @@ The Request object, which is passed to middlewares and endpoints, contains the f
 - `url` (string): Request URL.
 - `remote_addr` (string): Remote address.
 - `method` (string): Request method, in upper case (`GET`, `POST` etc.) .
-- `host` (string): Alias for `headers.host`.
-- `cookies` (proxied object): Key-value mappings of cookies in the `Cookie` header.
-- `session` (proxied object): Key-value read and write access to the session of the request.
-- `params` (proxied object): Key-value mappings of params in request URL.
+- `cookies` (object): Key-value mappings of cookies in the `Cookie` header.
+- `session` (object): Key-value read and write access to the session of the request.
+- `params` (object): Key-value mappings of params in request URL.
 
 For example, the following code:
 
-    app.get("/ip", req => req.remote_addr.split(":")[0]);
+    app.get("/ip", (req, resp) => resp.body(req.remote_addr.split(":")[0]));
 
 will return the visitor's IP address.
-
-All of the proxied object do lazy load, bringing zero overhead if you don't use them.
 
 ### Middlewares and Endpoints
 

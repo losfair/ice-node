@@ -1,3 +1,5 @@
+**本文档对应的版本为 v0.2.x 。对于 v0.3.x 的最新文档尚未完成。**
+
 Ice-node 是目前**最快的** Node Web 框架，基于 [Ice Core](https://github.com/losfair/IceCore) 核心。
 
 [![Build Status](https://travis-ci.org/losfair/ice-node.svg?branch=master)](https://travis-ci.org/losfair/ice-node)
@@ -8,13 +10,11 @@ Ice-node 是目前**最快的** Node Web 框架，基于 [Ice Core](https://gith
 
 Ice-node 基于 Ice Core ，其使用 Rust 和 C++ 编写，提供对 Web 服务的高性能抽象。
 
-对于一个 Hello world 服务， Ice-node 比 Node HTTP 库快 10% ，比 Koa 快 80% ，比 Express 快 100% 。
+对于一个 Hello world 服务， Ice-node 比 Node HTTP 库快 70% 。
 
 ##### 每秒请求数，越高越好
 
-![Benchmark Result](http://i.imgur.com/TkV8IxE.png)
-
-[原始数据](https://gist.github.com/losfair/066b04978d6a5b27418d85a6305ecd5c)
+![Benchmark result](https://i.imgur.com/4uBIYMC.png)
 
 对于执行数据库请求和简单逻辑的 Web 应用， Ice-node 比 Express 至少快 30% 。
 这是一个[测试应用](https://github.com/losfair/ice-node-perf-tests)，
