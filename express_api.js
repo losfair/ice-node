@@ -1,4 +1,13 @@
 const lib = require("./lib.js");
+const mime = require("mime");
+
+module.exports.createApplication = createApplication;
+
+function createApplication(cfg) {
+    let app = new lib.Application(cfg);
+    patchApplication(app);
+    return app;
+}
 
 module.exports.patchApplication = patchApplication;
 
@@ -61,15 +70,95 @@ function patchResponse(resp) {
     resp.patched = true;
 
     const _send = resp.send.bind(resp);
+    const _status = resp.status.bind(resp);
+    const _header = resp.header.bind(resp);
+    const _file = resp.file.bind(resp);
+    const _body = resp.body.bind(resp);
+    const _renderTemplate = resp.renderTemplate.bind(resp);
+
     resp.detach();
 
     resp.send = function(data) {
-        if(data) resp.body(data);
+        if(data) _body(data);
         _send();
     };
 
     resp.end = function(data) {
-        resp.body(data);
+        if(data) _body(data);
         _send();
     };
+
+    resp.json = function(data) {
+        _header("Content-Type", "application/json");
+        _body(JSON.stringify(data));
+        _send();
+    };
+
+    resp.sendFile = function(p) {
+        _file(p);
+        _send();
+    };
+
+    resp.sendStatus = function(code) {
+        _status(code);
+        _send();
+    };
+
+    resp.redirect = function() {
+        let path = arguments.pop();
+        let code = arguments.pop() || 302;
+        _status(code);
+        _header("Location", path);
+        _send();
+    };
+
+    resp.type = function(t) {
+        _header("Content-Type", mime.lookup(t));
+        return resp;
+    };
+
+    resp.header = function(k, v) {
+        if(typeof(k) == "object") {
+            let obj = k;
+            for(const k of obj) {
+                _header(k, obj[k]);
+            }
+        } else {
+            _header(k, v);;
+        }
+    };
+
+    resp.set = resp.header;
+
+    resp.render = function(name, data) {
+        _renderTemplate(name, data);
+        _send();
+    };
+}
+
+module.exports.bodyParser = {
+    json: parseJsonBody,
+    urlencoded: parseUrlencodedBody
+}
+
+function parseJsonBody() {
+    return function(req, resp, next) {
+        try {
+            req.body = req.json();
+            next();
+        } catch(e) {
+            next(e);
+        }
+    }
+}
+
+function parseUrlencodedBody() {
+    return function(req, resp, next) {
+        try {
+            req.body = req.form();
+            next();
+        } catch(e) {
+            next(e);
+        }
+    }
 }

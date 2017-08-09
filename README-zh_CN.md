@@ -1,4 +1,4 @@
-**本文档对应的版本为 v0.2.x 。对于 v0.3.x 的最新文档尚未完成。**
+**本文档对应的版本为 v0.2.x 。v0.3.x 的最新文档尚未完成。**
 
 Ice-node 是目前**最快的** Node Web 框架，基于 [Ice Core](https://github.com/losfair/IceCore) 核心。
 
