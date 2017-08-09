@@ -1,59 +1,75 @@
 const lib = require("./lib.js");
 
-module.exports.ExpressRequest = ExpressRequest;
-function ExpressRequest(req) {
-    if(!(this instanceof ExpressRequest)) return new ExpressRequest(...arguments);
-    if(!(req instanceof lib.Request)) throw new Error("ExpressRequest must be created with a Request");
+module.exports.patchApplication = patchApplication;
 
-    this.app = null;
-    this.baseUrl = null;
-    this.body = {};
-    this.cookies = req.cookies;
-    this.fresh = true;
-    this.hostname = req.host;
-    this.ip = req.remote_addr.split(":")[0];
-    this.ips = [ this.ip ];
-    this.method = req.method;
-    this.originalUrl = req.uri;
-    this.params = req.params;
-    this.path = req.url;
-    this.protocol = "http";
-    this.query = {};
-    this.route = {};
-    this.secure = false;
-    this.signedCookies = {};
-    this.stale = false;
-    this.xhr = req.headers["x-requested-with"] == "XMLHttpRequest";
+function patchApplication(app) {
+    if(!(app instanceof lib.Application)) {
+        throw new Error("Application required");
+    }
 
-    // TODO: this.accepts
-    // TODO: this.acceptsCharsets
-    // TODO: this.acceptsEncodings
-    // TODO: this.acceptsLanguages
+    const _app_use = app.use.bind(app);
+    const _app_route = app.route.bind(app);
+    const _app_prepare = app.prepare.bind(app);
+    const _app_listen = app.listen.bind(app);
 
-    this.header = k => req.headers[k];
-    this.get = this.header;
+    app.use = function(p, fn) {
+        if(typeof(fn) == "function") {
+            _app_use(p, function(req, resp, mw) {
+                patchResponse(resp);
+                return new Promise((cb, reject) => {
+                    fn(req, resp, function(e) {
+                        if(e) {
+                            reject(e);
+                        } else {
+                            cb();
+                        }
+                    });
+                });
+            });
+        } else {
+            _app_use(p, fn);
+        }
+    };
+    
+    app.route = function(methods, p, fn) {
+        _app_route(methods, p, function(req, resp) {
+            patchResponse(resp);
+            return fn(req, resp);
+        });
+    };
 
-    // TODO: this.is
+    app.listen = function(addr) {
+        if(typeof(addr) == "number") {
+            addr = "0.0.0.0:" + addr;
+        }
+        _app_prepare();
+        _app_listen(addr);
+    };
 
-    this.param = k => this.params[k] || (this.body ? this.body[k] : null) || this.query[k];
-
-    // TODO: this.range
-
+    app.setDefaultHandler((req, resp) => {
+        resp.detach();
+        resp.status(404).body("Not found").send();
+    });
 }
 
-module.exports.ExpressResponse = ExpressResponse;
-function ExpressResponse(resp) {
-    if(!(this instanceof ExpressResponse)) return new ExpressResponse(...arguments);
-    if(!(resp instanceof lib.Response)) throw new Error("ExpressResponse must be created with a Response");
+function patchResponse(resp) {
+    if(!(resp instanceof lib.Response)) {
+        throw new Error("Response required");
+    }
 
-    this.headers = {};
-    this.sent = false;
+    if(resp.patched) return;
+    resp.patched = true;
 
-    this.app = null;
-    this.headersSent = false;
-    this.locals = {};
-    
-    this.append = (k, v) => this.headers[k] = v; // TODO: Handle Set-Cookie and array values
+    const _send = resp.send.bind(resp);
+    resp.detach();
 
-    // TODO: Many...
+    resp.send = function(data) {
+        if(data) resp.body(data);
+        _send();
+    };
+
+    resp.end = function(data) {
+        resp.body(data);
+        _send();
+    };
 }

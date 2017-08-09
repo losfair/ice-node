@@ -12,6 +12,7 @@ function Application(cfg) {
     this.routes = {};
     this.flags = [];
     this.middlewares = [];
+    this.defaultHandler = (req, resp) => resp.status(404);
     this.prepared = false;
 }
 
@@ -87,6 +88,10 @@ Application.prototype.loadCervusModule = function(name, data) {
     this.server.loadCervusModule(name, data);
 }
 
+Application.prototype.setDefaultHandler = function(fn) {
+    this.defaultHandler = fn;
+}
+
 Application.prototype.prepare = function() {
     if(this.prepared) {
         throw new Error("Application.prepare: Already prepared");
@@ -118,7 +123,7 @@ Application.prototype.prepare = function() {
         }, flags);
     }
 
-    this.server.route("", generateEndpointHandler(this.middlewares, (req, resp) => resp.status(404)));
+    this.server.route("", generateEndpointHandler(this.middlewares, this.defaultHandler));
 
     this.prepared = true;
     this.route = null;
@@ -133,7 +138,7 @@ Application.prototype.listen = function(addr) {
     this.server.listen(addr);
 }
 
-//module.exports.Request = Request;
+module.exports.Request = Request;
 
 function Request(inst) {
     if(!(this instanceof Request)) {
@@ -213,7 +218,7 @@ Object.defineProperty(Request.prototype, "cookies", {
     }
 });
 
-//module.exports.Response = Response;
+module.exports.Response = Response;
 
 function Response(req) {
     if(!(this instanceof Response)) {
