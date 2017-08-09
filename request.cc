@@ -216,8 +216,13 @@ void Request::CustomProperty(const v8::FunctionCallbackInfo<v8::Value>& args) {
     String::Utf8Value key(args[0] -> ToString());
     auto cp = req -> _inst.borrow_custom_properties();
 
-    std::string v = cp.get(*key);
-    args.GetReturnValue().Set(String::NewFromUtf8(isolate, v.c_str()));
+    if(args.Length() >= 2) {
+        String::Utf8Value v(args[1] -> ToString());
+        cp.set(*key, *v);
+    } else {
+        std::string v = cp.get(*key);
+        args.GetReturnValue().Set(String::NewFromUtf8(isolate, v.c_str()));
+    }
 }
 
 void Request::CreateResponse(const v8::FunctionCallbackInfo<v8::Value>& args) {

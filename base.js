@@ -160,7 +160,8 @@ function Request(inst) {
     });
 
     this.custom = new Proxy({}, {
-        get: (t, k) => this.inst.customProperty(k)
+        get: (t, k) => this.inst.customProperty(k),
+        set: (t, k, v) => this.inst.customProperty(k, v)
     });
 }
 
