@@ -12,11 +12,11 @@ Ice-node is the **fastest** framework for building node web applications, based 
 
 Ice-node is based on Ice Core, which is written in Rust and provides high-performance abstractions for the Web.
 
-When serving the "Hello world!" text, Ice-node is about 70% faster than the raw Node.js http implementation, while providing full routing support.
+When serving the "Hello world!" text, Ice-node is about 125% faster than the raw Node.js http implementation, while providing full routing support.
 
 ##### Requests per second, higher is better
 
-![Benchmark result](https://i.imgur.com/4uBIYMC.png)
+![Benchmark result](https://i.imgur.com/fo6xskA.png)
 
 For practical applications that do database queries and some logic, Ice-node is also at least 30% faster than traditional Node web frameworks like Express.
 
