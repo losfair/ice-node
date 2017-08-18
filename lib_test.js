@@ -9,7 +9,7 @@ let template = `
 <p>Template OK: {{ param }}</p>
 `.trim();
 
-app.loadCervusModule("test", fs.readFileSync("test_module.bc"));
+//app.loadCervusModule("test", fs.readFileSync("test_module.bc"));
 
 app.addTemplate("test.html", template);
 

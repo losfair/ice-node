@@ -124,10 +124,8 @@ async function run() {
     }
     if(!ok) throw new Error("Exception not handled properly");
 
-    /*
     console.log("Testing URL params");
     assert((await rp.get(REMOTE + "/echo_params/hello/world")) == "hello world");
-    */
     
     console.log("Testing template rendering");
     assert((await rp.get(REMOTE + "/template/" + template_param)) == expected_rendered_template);
