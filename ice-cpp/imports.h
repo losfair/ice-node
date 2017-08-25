@@ -51,12 +51,10 @@ const u8 * ice_glue_request_get_body(Resource t, u32 *len_out);
 char * ice_glue_request_render_template_to_owned(Resource t, const char *name, const char *data);
 Resource ice_glue_request_borrow_context(Resource t);
 Resource ice_glue_request_borrow_custom_properties(Resource t);
-
-Resource ice_glue_request_create_header_iterator(Resource t);
-const char * ice_glue_request_header_iterator_next(Resource t, Resource itr_p);
-void ice_glue_destroy_header_iterator(Resource itr_p);
+const u8 * ice_glue_request_get_url_params(Resource t);
 
 Resource ice_glue_create_response();
+void ice_glue_destroy_response(Resource t);
 void ice_glue_response_set_body(Resource t, const u8 *body, u32 len);
 void ice_glue_response_set_file(Resource t, const char *path);
 void ice_glue_response_set_status(Resource t, u16 status);
@@ -68,6 +66,16 @@ Resource ice_glue_response_stream(Resource t, Resource ctx);
 void ice_glue_custom_properties_set(Resource cp, const char *k, const char *v);
 const char * ice_glue_custom_properties_get(Resource cp, const char *k);
 
+Resource ice_glue_interop_create_context_with_name(const char *name);
+void ice_glue_interop_destroy_context(Resource ctx);
+void ice_glue_interop_run_hooks(Resource ctx, Resource app_ctx);
+void ice_glue_interop_set_tx_field(Resource ctx, const char *k, const char *v);
+void ice_glue_interop_set_rx_field(Resource ctx, const char *k, const char *v);
+const char * ice_glue_interop_get_tx_field(Resource ctx, const char *k);
+const char * ice_glue_interop_get_rx_field(Resource ctx, const char *k);
+const u8 * ice_glue_interop_read_tx(Resource ctx);
+const u8 * ice_glue_interop_read_rx(Resource ctx);
+
 bool ice_core_fire_callback(Resource call_info, Resource resp);
 Resource ice_core_borrow_request_from_call_info(Resource call_info);
 Resource ice_core_get_custom_app_data_from_call_info(Resource call_info);
@@ -75,6 +83,14 @@ int ice_core_endpoint_get_id(Resource ep);
 void ice_core_endpoint_set_flag(Resource ep, const char *name, bool value);
 void ice_core_stream_provider_send_chunk(Resource sp, const u8 *data, u32 len);
 void ice_core_destroy_stream_provider(Resource sp);
+
+Resource ice_ext_mpsc_create();
+void ice_ext_mpsc_destroy(Resource mpsc);
+Resource ice_ext_mpsc_create_sender(Resource mpsc);
+void ice_ext_mpsc_destroy_sender(Resource sender);
+Resource ice_ext_mpsc_sender_clone(Resource sender);
+void ice_ext_mpsc_sender_write(Resource sender, void *data);
+void * ice_ext_mpsc_read(Resource mpsc);
 
 #ifdef __cplusplus
 }

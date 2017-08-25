@@ -12,6 +12,7 @@
 #include <deque>
 #include <sstream>
 #include <stdexcept>
+#include <assert.h>
 #include <string.h>
 #include <unistd.h>
 #include <uv.h>
@@ -77,6 +78,71 @@ struct Task {
     }
 };
 
+class MpscSender {
+    private:
+        Resource handle;
+    
+    public:
+        MpscSender(Resource _handle) {
+            handle = _handle;
+        }
+
+        MpscSender(const MpscSender& other) {
+            handle = ice_ext_mpsc_sender_clone(other.handle);
+        }
+
+        ~MpscSender() {
+            ice_ext_mpsc_destroy_sender(handle);
+        }
+
+        void write(void *data) const {
+            ice_ext_mpsc_sender_write(handle, data);
+        }
+};
+
+class Mpsc {
+    private:
+        Resource handle;
+    
+    public:
+        Mpsc() {
+            handle = ice_ext_mpsc_create();
+        }
+
+        Mpsc(const Mpsc& other) {
+            std::cerr << "ERROR: Attempting to copy an Mpsc instance." << std::endl;
+            assert(false);
+        }
+
+        ~Mpsc() {
+            ice_ext_mpsc_destroy(handle);
+        }
+
+        MpscSender create_sender() {
+            return MpscSender(ice_ext_mpsc_create_sender(handle));
+        }
+
+        void * read() {
+            return ice_ext_mpsc_read(handle);
+        }
+};
+
+class InteropContext {
+    private:
+        Resource handle;
+    
+    public:
+        InteropContext(Resource _handle) {
+            handle = _handle;
+        }
+
+        ~InteropContext() {
+            if(handle) {
+                ice_glue_interop_destroy_context(handle);
+            }
+        }
+};
+
 class ResponseStream {
     private:
         Resource handle;
@@ -120,6 +186,23 @@ class ResponseStream {
 
         bool write(const char *s) const {
             return write((const u8 *) s, strlen(s));
+        }
+
+        bool write_str(const char *s) const {
+            return write(s);
+        }
+
+        bool write_bytes(const u8 *data, u32 len) const {
+            return write(data, len);
+        }
+
+        bool close() {
+            if(handle) {
+                ice_core_destroy_stream_provider(handle);
+                handle = NULL;
+                return true;
+            }
+            return false;
         }
 };
 
@@ -179,6 +262,14 @@ class Response {
 
         inline Response& set_body(const std::string& body) {
             return set_body((const u8 *) body.c_str(), body.size());
+        }
+
+        inline Response& set_body_str(const char *body) {
+            return set_body(body);
+        }
+
+        inline Response& set_body_bytes(const u8 *body, u32 len) {
+            return set_body(body, len);
         }
 
         inline Response& set_file(const char *path) {
@@ -273,6 +364,10 @@ class Request {
             return ice_glue_request_get_body(handle, len_out);
         }
 
+        inline std::unordered_map<std::string, const char *> get_url_params() {
+            return read_map(ice_glue_request_get_url_params(handle));
+        }
+
         inline std::unordered_map<std::string, const char *> get_headers() {
             return read_map(ice_glue_request_get_headers(handle));
         }
@@ -315,12 +410,12 @@ class Server {
         uv_loop_t *ev_loop;
         uv_async_t task_async;
         std::unordered_map<int, DispatchTarget> dispatch_table;
+        std::unordered_map<int, bool> blocking_endpoints;
         std::mutex pending_mutex;
         std::deque<Task> pending;
         std::string async_endpoint_cb_signature;
 
-    public:
-        Server(uv_loop_t *loop) {
+        void init(uv_loop_t *loop) {
             handle = ice_create_server();
             if(loop) {
                 ev_loop = loop;
@@ -332,6 +427,15 @@ class Server {
 
             ice_server_set_custom_app_data(handle, (void *) this);
             ice_server_set_async_endpoint_cb(handle, dispatch_async_endpoint_cb);
+        }
+
+    public:
+        Server() {
+            init(NULL);
+        }
+
+        Server(uv_loop_t *loop) {
+            init(loop);
         }
 
         ~Server() {}
@@ -357,7 +461,7 @@ class Server {
             }
         }
 
-        void add_endpoint(const char *path, DispatchTarget handler, std::vector<std::string>& flags) {
+        void add_endpoint(const char *path, DispatchTarget handler, std::vector<std::string>& flags, bool blocking = false) {
             int id = -1;
 
             if(path && path[0]) {
@@ -370,6 +474,7 @@ class Server {
             }
 
             dispatch_table[id] = handler;
+            if(blocking) blocking_endpoints[id] = true;
         }
 
         void add_endpoint(const char *path, DispatchTarget handler) {
@@ -389,12 +494,29 @@ class Server {
             route_sync(path, handler, flags);
         }
 
+        void route_blocking(const char *path, DispatchTarget handler, std::vector<std::string>& flags) {
+            add_endpoint(path, handler, flags, true);
+        }
+
+        void route_blocking(const char *path, DispatchTarget handler) {
+            std::vector<std::string> flags;
+            route_blocking(path, handler, flags);
+        }
+
+        void route_blocking_with_flags(const char *path, DispatchTarget handler, std::vector<std::string>& flags) {
+            route_blocking(path, handler, flags);
+        }
+
         void route_async(const char *path, DispatchTarget handler, std::vector<std::string>& flags) {
             add_endpoint(path, handler, flags);
         }
 
         void route_async(const char *path, DispatchTarget handler) {
             std::vector<std::string> flags;
+            route_async(path, handler, flags);
+        }
+
+        void route_async_with_flags(const char *path, DispatchTarget handler, std::vector<std::string>& flags) {
             route_async(path, handler, flags);
         }
 
@@ -443,11 +565,22 @@ class Server {
         }
 
         void async_endpoint_cb(int ep_id, Resource call_info) {
-            pending_mutex.lock();
-            pending.push_back(Task(ep_id, call_info));
-            pending_mutex.unlock();
+            if(blocking_endpoints[ep_id]) {
+                auto target = dispatch_table[ep_id];
+                Request req(call_info);
 
-            uv_async_send(&task_async);
+                if(!target) {
+                    req.create_response().set_status(404).set_body("Invalid endpoint").send();
+                } else {
+                    target(req);
+                }
+            } else {
+                pending_mutex.lock();
+                pending.push_back(Task(ep_id, call_info));
+                pending_mutex.unlock();
+
+                uv_async_send(&task_async);
+            }
         }
 
         void run(const char *addr) {
