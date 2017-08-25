@@ -145,6 +145,25 @@ void Request::Headers(const v8::FunctionCallbackInfo<v8::Value>& args) {
     args.GetReturnValue().Set(items);
 }
 
+void Request::UrlParams(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
+
+    if(req -> responseSent) {
+        isolate -> ThrowException(String::NewFromUtf8(isolate, "Request is no longer valid once a Response is sent"));
+        return;
+    }
+
+    Local<Object> items = Object::New(isolate);
+    auto _items = req -> _inst.get_url_params();
+
+    for(auto& p : _items) {
+        if(p.second) items -> Set(String::NewFromUtf8(isolate, p.first.c_str()), String::NewFromUtf8(isolate, p.second));
+    }
+
+    args.GetReturnValue().Set(items);
+}
+
 void Request::Cookie(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate *isolate = args.GetIsolate();
     Request *req = node::ObjectWrap::Unwrap<Request>(args.Holder());
@@ -271,6 +290,7 @@ void Request::Init(Isolate *isolate) {
     NODE_SET_PROTOTYPE_METHOD(tpl, "body", Body);
     NODE_SET_PROTOTYPE_METHOD(tpl, "customProperty", CustomProperty);
     NODE_SET_PROTOTYPE_METHOD(tpl, "createResponse", CreateResponse);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "urlParams", UrlParams);
 
     _request_constructor.Reset(isolate, tpl -> GetFunction());
 }

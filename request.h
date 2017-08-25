@@ -44,6 +44,7 @@ class Request : public node::ObjectWrap {
         static void Body(const v8::FunctionCallbackInfo<v8::Value>& args);
         static void CustomProperty(const v8::FunctionCallbackInfo<v8::Value>& args);
         static void CreateResponse(const v8::FunctionCallbackInfo<v8::Value>& args);
+        static void UrlParams(const v8::FunctionCallbackInfo<v8::Value>& args);
     
     public:
         ice::Request _inst;
