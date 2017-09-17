@@ -13,6 +13,7 @@
 #include <queue>
 
 #include "ice-api-v4/init.h"
+#include "ice-api-v4/glue.h"
 #include "ice-api-v4/http.h"
 
 using namespace v8;
@@ -115,6 +116,16 @@ static void enqueue_executor(std::function<void()> executor) {
     uv_async_send(&global_async_handle);
 }
 
+static Local<Value> build_string_from_ice_owned_string(Isolate *isolate, ice_owned_string_t os) {
+    if(os) {
+        auto s = String::NewFromUtf8(isolate, os);
+        ice_glue_destroy_cstring(os);
+        return s;
+    } else {
+        return Null(isolate);
+    }
+}
+
 static void http_server_config_create(const FunctionCallbackInfo<Value>& args) {
     Isolate *isolate = args.GetIsolate();
     IceHttpServerConfig cfg = ice_http_server_config_create();
@@ -214,30 +225,6 @@ static void http_server_route_create(const FunctionCallbackInfo<Value>& args) {
     args.GetReturnValue().Set(res.build_object(isolate));
 }
 
-static void http_response_create(const FunctionCallbackInfo<Value>& args) {
-    Isolate *isolate = args.GetIsolate();
-
-    NativeResource res(
-        NR_HttpResponse,
-        (void *) ice_http_response_create()
-    );
-
-    args.GetReturnValue().Set(res.build_object(isolate));
-}
-
-static void http_response_destroy(const FunctionCallbackInfo<Value>& args) {
-    Local<Object> target = args[0] -> ToObject();
-    NativeResource res = NativeResource::from_object(
-        target
-    );
-    assert(res.get_type() == NR_HttpResponse);
-
-    ice_http_response_destroy(
-        (IceHttpResponse) res.get_data()
-    );
-    NativeResource::reset_object(target);
-}
-
 static void http_server_endpoint_context_end_with_response(
     const FunctionCallbackInfo<Value>& args
 ) {
@@ -311,6 +298,163 @@ static void http_server_set_default_route(const FunctionCallbackInfo<Value>& arg
     NativeResource::reset_object(arg1);
 }
 
+static void http_response_create(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    NativeResource res(
+        NR_HttpResponse,
+        (void *) ice_http_response_create()
+    );
+
+    args.GetReturnValue().Set(res.build_object(isolate));
+}
+
+static void http_response_destroy(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> target = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        target
+    );
+    assert(res.get_type() == NR_HttpResponse);
+
+    ice_http_response_destroy(
+        (IceHttpResponse) res.get_data()
+    );
+    NativeResource::reset_object(target);
+}
+
+static void http_response_set_body(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> target = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        target
+    );
+    assert(res.get_type() == NR_HttpResponse);
+
+    IceHttpResponse resp = (IceHttpResponse) res.get_data();
+    Local<Object> buf_obj = Local<Object>::Cast(args[1]);
+
+    const ice_uint8_t *data = (ice_uint8_t *) node::Buffer::Data(buf_obj);
+    assert(data != NULL);
+
+    ice_uint32_t data_len = node::Buffer::Length(buf_obj);
+    ice_http_response_set_body(resp, data, data_len);
+}
+
+static void http_response_set_status(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> target = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        target
+    );
+    assert(res.get_type() == NR_HttpResponse);
+
+    IceHttpResponse resp = (IceHttpResponse) res.get_data();
+
+    ice_uint16_t status = args[1] -> NumberValue();
+    ice_http_response_set_status(resp, status);
+}
+
+static void http_response_set_header(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> target = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        target
+    );
+    assert(res.get_type() == NR_HttpResponse);
+
+    IceHttpResponse resp = (IceHttpResponse) res.get_data();
+
+    String::Utf8Value key(args[1] -> ToString());
+    String::Utf8Value value(args[2] -> ToString());
+
+    ice_http_response_set_header(resp, *key, *value);
+}
+
+static void http_response_append_header(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> target = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        target
+    );
+    assert(res.get_type() == NR_HttpResponse);
+
+    IceHttpResponse resp = (IceHttpResponse) res.get_data();
+
+    String::Utf8Value key(args[1] -> ToString());
+    String::Utf8Value value(args[2] -> ToString());
+
+    ice_http_response_append_header(resp, *key, *value);
+}
+
+static void http_request_get_uri(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    Local<Object> target = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        target
+    );
+    assert(res.get_type() == NR_HttpRequest);
+    IceHttpRequest req = (IceHttpRequest) res.get_data();
+
+    args.GetReturnValue().Set(
+        build_string_from_ice_owned_string(
+            isolate,
+            ice_http_request_get_uri_to_owned(req)
+        )
+    );
+}
+
+static void http_request_get_method(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    
+    Local<Object> target = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        target
+    );
+    assert(res.get_type() == NR_HttpRequest);
+    IceHttpRequest req = (IceHttpRequest) res.get_data();
+
+    args.GetReturnValue().Set(
+        build_string_from_ice_owned_string(
+            isolate,
+            ice_http_request_get_method_to_owned(req)
+        )
+    );
+}
+
+static void http_request_get_remote_addr(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    
+    Local<Object> target = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        target
+    );
+    assert(res.get_type() == NR_HttpRequest);
+    IceHttpRequest req = (IceHttpRequest) res.get_data();
+
+    args.GetReturnValue().Set(
+        build_string_from_ice_owned_string(
+            isolate,
+            ice_http_request_get_remote_addr_to_owned(req)
+        )
+    );
+}
+
+static void http_request_get_header(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    
+    Local<Object> target = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        target
+    );
+    assert(res.get_type() == NR_HttpRequest);
+    IceHttpRequest req = (IceHttpRequest) res.get_data();
+
+    String::Utf8Value key(args[1] -> ToString());
+    args.GetReturnValue().Set(
+        build_string_from_ice_owned_string(
+            isolate,
+            ice_http_request_get_header_to_owned(req, *key)
+        )
+    );
+}
+
 static void init_module(Local<Object> exports) {
     uv_async_init(uv_default_loop(), &global_async_handle, handle_async_callback);
     NODE_SET_METHOD(exports, "http_server_config_create", http_server_config_create);
@@ -325,7 +469,15 @@ static void init_module(Local<Object> exports) {
     NODE_SET_METHOD(exports, "http_server_set_default_route", http_server_set_default_route);
     NODE_SET_METHOD(exports, "http_response_create", http_response_create);
     NODE_SET_METHOD(exports, "http_response_destroy", http_response_destroy);
+    NODE_SET_METHOD(exports, "http_response_set_body", http_response_set_body);
+    NODE_SET_METHOD(exports, "http_response_set_status", http_response_set_status);
+    NODE_SET_METHOD(exports, "http_response_set_header", http_response_set_header);
+    NODE_SET_METHOD(exports, "http_response_append_header", http_response_append_header);
     NODE_SET_METHOD(exports, "http_server_endpoint_context_end_with_response", http_server_endpoint_context_end_with_response);
+    NODE_SET_METHOD(exports, "http_request_get_uri", http_request_get_uri);
+    NODE_SET_METHOD(exports, "http_request_get_method", http_request_get_method);
+    NODE_SET_METHOD(exports, "http_request_get_remote_addr", http_request_get_remote_addr);
+    NODE_SET_METHOD(exports, "http_request_get_header", http_request_get_header);
 }
 
 NODE_MODULE(addon, init_module)
