@@ -11,6 +11,8 @@
 #include <uv.h>
 #include <functional>
 #include <queue>
+#include <utility>
+#include <string.h>
 
 #include "ice-api-v4/init.h"
 #include "ice-api-v4/glue.h"
@@ -250,6 +252,26 @@ static void http_server_endpoint_context_end_with_response(
     NativeResource::reset_object(arg1);
 }
 
+static void http_server_endpoint_context_take_request(
+    const FunctionCallbackInfo<Value>& args
+) {
+    Isolate *isolate = args.GetIsolate();
+
+    auto arg0 = args[0] -> ToObject();
+
+    NativeResource ctxRes = NativeResource::from_object(
+        arg0
+    );
+    assert(ctxRes.get_type() == NR_HttpEndpointContext);
+
+    IceHttpEndpointContext ctx = (IceHttpEndpointContext) ctxRes.get_data();
+    IceHttpRequest req = ice_http_server_endpoint_context_take_request(ctx);
+    assert(req != NULL);
+
+    NativeResource reqRes(NR_HttpRequest, (void *) req);
+    args.GetReturnValue().Set(reqRes.build_object(isolate));
+}
+
 static void http_server_route_destroy(const FunctionCallbackInfo<Value>& args) {
     auto arg0 = args[0] -> ToObject();
 
@@ -382,6 +404,18 @@ static void http_response_append_header(const FunctionCallbackInfo<Value>& args)
     ice_http_response_append_header(resp, *key, *value);
 }
 
+static void http_request_destroy(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> target = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        target
+    );
+    assert(res.get_type() == NR_HttpRequest);
+    IceHttpRequest req = (IceHttpRequest) res.get_data();
+
+    ice_http_request_destroy(req);
+    NativeResource::reset_object(target);
+}
+
 static void http_request_get_uri(const FunctionCallbackInfo<Value>& args) {
     Isolate *isolate = args.GetIsolate();
 
@@ -455,6 +489,117 @@ static void http_request_get_header(const FunctionCallbackInfo<Value>& args) {
     );
 }
 
+static void http_request_take_and_read_body(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    
+    Local<Object> target = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        target
+    );
+    assert(res.get_type() == NR_HttpRequest);
+    IceHttpRequest req = (IceHttpRequest) res.get_data();
+
+    NativeResource::reset_object(target);
+
+    Local<Function> onData = Local<Function>::Cast(args[1]);
+    Local<Function> onEnd = Local<Function>::Cast(args[2]);
+
+    auto *callbacks = new std::pair<std::unique_ptr<Persistent<Function>>, std::unique_ptr<Persistent<Function>>>(std::make_pair(
+        std::unique_ptr<Persistent<Function>>(new Persistent<Function>(isolate, onData)),
+        std::unique_ptr<Persistent<Function>>(new Persistent<Function>(isolate, onEnd))
+    ));
+
+    ice_http_request_take_and_read_body(
+        req,
+        [](const ice_uint8_t *data, ice_uint32_t len, void *call_with) -> ice_uint8_t {
+            char *raw_buf = new char [len];
+            memcpy(raw_buf, data, len);
+            auto info = (std::pair<std::unique_ptr<Persistent<Function>>, std::unique_ptr<Persistent<Function>>> *) call_with;
+
+            enqueue_executor([=]() {
+                Isolate *isolate = Isolate::GetCurrent();
+                HandleScope scope(isolate);
+
+                Local<Function> local_cb = Local<Function>::New(isolate, *info -> first);
+    
+                auto data_buf = node::Buffer::New(
+                    isolate,
+                    raw_buf,
+                    len,
+                    [](char *data, void *hint) {
+                        delete[] data;
+                    },
+                    NULL
+                );
+                assert(!data_buf.IsEmpty());
+    
+                Local<Value> argv[] = {
+                    data_buf.ToLocalChecked()
+                };
+    
+                node::MakeCallback(
+                    isolate,
+                    Object::New(isolate),
+                    local_cb,
+                    1,
+                    argv
+                );
+            });
+
+            return 1;
+        },
+        [](ice_uint8_t ok, void *call_with) {
+            enqueue_executor([=]() {
+                auto info = (std::pair<std::unique_ptr<Persistent<Function>>, std::unique_ptr<Persistent<Function>>> *) call_with;
+
+                Isolate *isolate = Isolate::GetCurrent();
+                HandleScope scope(isolate);
+    
+                Local<Function> local_cb = Local<Function>::New(isolate, *info -> second);
+                Local<Value> argv[] = {
+                    Boolean::New(isolate, (bool) ok)
+                };
+                node::MakeCallback(
+                    isolate,
+                    Object::New(isolate),
+                    local_cb,
+                    1,
+                    argv
+                );
+    
+                info -> first -> Reset();
+                info -> second -> Reset();
+    
+                delete info;
+            });
+        },
+        (void *) callbacks
+    );
+}
+
+static void storage_file_http_response_begin_send(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    
+    Local<Object> arg0 = args[0] -> ToObject();
+    Local<Object> arg1 = args[1] -> ToObject();
+
+    NativeResource reqRes = NativeResource::from_object(
+        arg0
+    );
+    assert(reqRes.get_type() == NR_HttpRequest);
+    IceHttpRequest req = (IceHttpRequest) reqRes.get_data();
+
+    NativeResource respRes = NativeResource::from_object(
+        arg1
+    );
+    assert(respRes.get_type() == NR_HttpResponse);
+    IceHttpResponse resp = (IceHttpResponse) respRes.get_data();
+
+    String::Utf8Value path(args[2] -> ToString());
+    ice_uint8_t ret = ice_storage_file_http_response_begin_send(req, resp, *path);
+    args.GetReturnValue().Set(Boolean::New(isolate, (bool) ret));
+}
+
 static void init_module(Local<Object> exports) {
     uv_async_init(uv_default_loop(), &global_async_handle, handle_async_callback);
     NODE_SET_METHOD(exports, "http_server_config_create", http_server_config_create);
@@ -478,6 +623,10 @@ static void init_module(Local<Object> exports) {
     NODE_SET_METHOD(exports, "http_request_get_method", http_request_get_method);
     NODE_SET_METHOD(exports, "http_request_get_remote_addr", http_request_get_remote_addr);
     NODE_SET_METHOD(exports, "http_request_get_header", http_request_get_header);
+    NODE_SET_METHOD(exports, "storage_file_http_response_begin_send", storage_file_http_response_begin_send);
+    NODE_SET_METHOD(exports, "http_server_endpoint_context_take_request", http_server_endpoint_context_take_request);
+    NODE_SET_METHOD(exports, "http_request_destroy", http_request_destroy);
+    NODE_SET_METHOD(exports, "http_request_take_and_read_body", http_request_take_and_read_body);
 }
 
 NODE_MODULE(addon, init_module)
