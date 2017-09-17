@@ -123,11 +123,15 @@ static void http_server_config_create(const FunctionCallbackInfo<Value>& args) {
 }
 
 static void http_server_config_destroy(const FunctionCallbackInfo<Value>& args) {
-    NativeResource res = NativeResource::from_object(args[0] -> ToObject());
+    auto arg0 = args[0] -> ToObject();
+
+    NativeResource res = NativeResource::from_object(arg0);
     assert(res.get_type() == NR_HttpServerConfig);
 
     IceHttpServerConfig cfg = (IceHttpServerConfig) res.get_data();
     ice_http_server_config_destroy(cfg);
+
+    NativeResource::reset_object(arg0);
 }
 
 static void http_server_config_set_listen_addr(const FunctionCallbackInfo<Value>& args) {
@@ -150,7 +154,9 @@ static void http_server_config_set_num_executors(const FunctionCallbackInfo<Valu
 }
 
 static void http_server_create(const FunctionCallbackInfo<Value>& args) {
-    NativeResource res = NativeResource::from_object(args[0] -> ToObject());
+    auto arg0 = args[0] -> ToObject();
+
+    NativeResource res = NativeResource::from_object(arg0);
     assert(res.get_type() == NR_HttpServerConfig);
 
     IceHttpServerConfig cfg = (IceHttpServerConfig) res.get_data();
@@ -158,6 +164,7 @@ static void http_server_create(const FunctionCallbackInfo<Value>& args) {
     IceHttpServer server = ice_http_server_create(cfg);
     NativeResource serverRes(NR_HttpServer, (void *) server);
 
+    NativeResource::reset_object(arg0);
     args.GetReturnValue().Set(serverRes.build_object(args.GetIsolate()));
 }
 
@@ -234,13 +241,16 @@ static void http_response_destroy(const FunctionCallbackInfo<Value>& args) {
 static void http_server_endpoint_context_end_with_response(
     const FunctionCallbackInfo<Value>& args
 ) {
+    auto arg0 = args[0] -> ToObject();
+    auto arg1 = args[1] -> ToObject();
+
     NativeResource ctxRes = NativeResource::from_object(
-        args[0] -> ToObject()
+        arg0
     );
     assert(ctxRes.get_type() == NR_HttpEndpointContext);
 
     NativeResource respRes = NativeResource::from_object(
-        args[1] -> ToObject()
+        arg1
     );
     assert(respRes.get_type() == NR_HttpResponse);
 
@@ -248,40 +258,57 @@ static void http_server_endpoint_context_end_with_response(
         (IceHttpEndpointContext) ctxRes.get_data(),
         (IceHttpResponse) respRes.get_data()
     );
+
+    NativeResource::reset_object(arg0);
+    NativeResource::reset_object(arg1);
 }
 
 static void http_server_route_destroy(const FunctionCallbackInfo<Value>& args) {
-    NativeResource res = NativeResource::from_object(args[0] -> ToObject());
+    auto arg0 = args[0] -> ToObject();
+
+    NativeResource res = NativeResource::from_object(arg0);
     assert(res.get_type() == NR_HttpRouteInfo);
 
     IceHttpRouteInfo rt = (IceHttpRouteInfo) res.get_data();
     ice_http_server_route_destroy(rt);
+
+    NativeResource::reset_object(arg0);
 }
 
 static void http_server_add_route(const FunctionCallbackInfo<Value>& args) {
-    NativeResource serverRes = NativeResource::from_object(args[0] -> ToObject());
+    auto arg0 = args[0] -> ToObject();
+    auto arg1 = args[1] -> ToObject();
+
+    NativeResource serverRes = NativeResource::from_object(arg0);
     assert(serverRes.get_type() == NR_HttpServer);
 
-    NativeResource rtRes = NativeResource::from_object(args[1] -> ToObject());
+    NativeResource rtRes = NativeResource::from_object(arg1);
     assert(rtRes.get_type() == NR_HttpRouteInfo);
 
     IceHttpServer server = (IceHttpServer) serverRes.get_data();
     IceHttpRouteInfo rt = (IceHttpRouteInfo) rtRes.get_data();
 
     ice_http_server_add_route(server, rt);
+
+    NativeResource::reset_object(arg1);
 }
 
 static void http_server_set_default_route(const FunctionCallbackInfo<Value>& args) {
-    NativeResource serverRes = NativeResource::from_object(args[0] -> ToObject());
+    auto arg0 = args[0] -> ToObject();
+    auto arg1 = args[1] -> ToObject();
+
+    NativeResource serverRes = NativeResource::from_object(arg0);
     assert(serverRes.get_type() == NR_HttpServer);
 
-    NativeResource rtRes = NativeResource::from_object(args[1] -> ToObject());
+    NativeResource rtRes = NativeResource::from_object(arg1);
     assert(rtRes.get_type() == NR_HttpRouteInfo);
 
     IceHttpServer server = (IceHttpServer) serverRes.get_data();
     IceHttpRouteInfo rt = (IceHttpRouteInfo) rtRes.get_data();
 
     ice_http_server_set_default_route(server, rt);
+
+    NativeResource::reset_object(arg1);
 }
 
 static void init_module(Local<Object> exports) {
