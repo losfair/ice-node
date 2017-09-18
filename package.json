@@ -1,6 +1,6 @@
 {
-  "name": "ice-node-v4",
-  "version": "0.1.0",
+  "name": "ice-node",
+  "version": "0.4.0",
   "description": "Node bindings for Ice Core v0.4",
   "main": "lib.js",
   "scripts": {

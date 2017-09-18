@@ -1,5 +1,5 @@
 const lib = require("./lib.js");
-const router = require("./router.js");
+const router = lib.router;
 
 let server = new lib.HttpServer(
     new lib.HttpServerConfig().set_num_executors(4).set_listen_addr("127.0.0.1:6851")

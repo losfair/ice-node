@@ -1,5 +1,8 @@
 const core = require("./build/Release/ice_node_v4_core");
 const assert = require("assert");
+const router = require("./router.js");
+
+module.exports.router = router;
 
 class HttpServer {
     constructor(cfg) {
