@@ -1,20 +1,29 @@
 const lib = require("./lib.js");
+const router = require("./router.js");
 
 let server = new lib.HttpServer(
     new lib.HttpServerConfig().set_num_executors(4).set_listen_addr("127.0.0.1:6851")
 );
 
-server.route("/", (req) => {
-    let totalLength = 0;
-    let result = "";
+let rt = new router.Router();
+//rt.use("/", (req) => console.log(req));
+rt.route("POST", "/echo", (req) => {
+    let result = [];
+
     req.intoBody((data) => {
-        totalLength += data.length
-        result += data.toString();
+        result.push(data);
     }, (ok) => {
-        console.log(totalLength);
-        console.log(result);
-        req.createResponse().send();
+        req.createResponse().setBody(Buffer.concat(result)).send();
     });
+
+    return new router.Detached();
 });
+rt.route("GET", "/hello_world", (req) => {
+    return req.createResponse().setBody("Hello world!\n");
+});
+rt.route("GET", "/some_file", (req) => {
+    return req.createResponse().sendFile("lib_test.js");
+});
+rt.build(server);
 
 server.start();

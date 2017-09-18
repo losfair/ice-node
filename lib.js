@@ -58,7 +58,7 @@ class HttpRequest {
     }
 
     createResponse() {
-        return new HttpResponse(this.ctx);
+        return new HttpResponse(this.ctx, this);
     }
 
     intoBody(onData, onEnd) {
@@ -68,12 +68,35 @@ class HttpRequest {
 
         core.http_request_take_and_read_body(ownedInst, onData, onEnd);
     }
+
+    getMethod() {
+        assert(this.inst);
+        return core.http_request_get_method(this.inst);
+    }
+
+    getUri() {
+        assert(this.inst);
+        return core.http_request_get_uri(this.inst);
+    }
+
+    getRemoteAddr() {
+        assert(this.inst);
+        return core.http_request_get_remote_addr(this.inst);
+    }
+
+    getHeader(k) {
+        assert(this.inst);
+        assert(typeof(k) == "string");
+        return core.http_request_get_header(this.inst, k);
+    }
 }
 
 class HttpResponse {
-    constructor(ctx) {
+    constructor(ctx, req) {
         this.ctx = ctx;
+        this.req = req;
         this.inst = core.http_response_create();
+        core.http_response_set_header(this.inst, "X-Powered-By", "Ice-node");
     }
 
     destroy() {
@@ -87,7 +110,61 @@ class HttpResponse {
         core.http_server_endpoint_context_end_with_response(this.ctx, this.inst);
         this.inst = null;
     }
+
+    setBody(data) {
+        assert(this.inst);
+
+        if(!(data instanceof Buffer)) {
+            data = Buffer.from(data);
+        }
+        assert(data);
+
+        core.http_response_set_body(this.inst, data);
+
+        return this;
+    }
+
+    setStatus(status) {
+        assert(this.inst);
+        assert(typeof(status) == "number");
+
+        core.http_response_set_status(this.inst, status);
+
+        return this;
+    }
+
+    setHeader(k, v) {
+        assert(this.inst);
+        assert(typeof(k) == "string" && typeof(v) == "string");
+
+        core.http_response_set_header(this.inst, k, v);
+
+        return this;
+    }
+
+    appendHeader(k, v) {
+        assert(this.inst);
+        assert(typeof(k) == "string" && typeof(v) == "string");
+
+        core.http_response_append_header(this.inst, k, v);
+
+        return this;
+    }
+
+    sendFile(path) {
+        assert(this.inst && this.req.inst);
+        assert(typeof(path) == "string");
+
+        let ret = core.storage_file_http_response_begin_send(this.req.inst, this.inst, path);
+        if(!ret) {
+            throw new Error("Unable to send file: " + path);
+        }
+
+        return this;
+    }
 }
 
 module.exports.HttpServer = HttpServer;
 module.exports.HttpServerConfig = HttpServerConfig;
+module.exports.HttpRequest = HttpRequest;
+module.exports.HttpResponse = HttpResponse;
