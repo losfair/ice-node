@@ -489,6 +489,22 @@ static void http_request_get_header(const FunctionCallbackInfo<Value>& args) {
     );
 }
 
+struct RequestBodyReadContext {
+    std::unique_ptr<Persistent<Function>> onData;
+    std::unique_ptr<Persistent<Function>> onEnd;
+    bool shouldTerminate;
+
+    RequestBodyReadContext(Persistent<Function> *_onData, Persistent<Function> *_onEnd)
+        : onData(_onData), onEnd(_onEnd) {
+            shouldTerminate = false;
+    }
+
+    ~RequestBodyReadContext() {
+        onData -> Reset();
+        onEnd -> Reset();
+    }
+};
+
 static void http_request_take_and_read_body(const FunctionCallbackInfo<Value>& args) {
     Isolate *isolate = args.GetIsolate();
     
@@ -504,23 +520,27 @@ static void http_request_take_and_read_body(const FunctionCallbackInfo<Value>& a
     Local<Function> onData = Local<Function>::Cast(args[1]);
     Local<Function> onEnd = Local<Function>::Cast(args[2]);
 
-    auto *callbacks = new std::pair<std::unique_ptr<Persistent<Function>>, std::unique_ptr<Persistent<Function>>>(std::make_pair(
-        std::unique_ptr<Persistent<Function>>(new Persistent<Function>(isolate, onData)),
-        std::unique_ptr<Persistent<Function>>(new Persistent<Function>(isolate, onEnd))
-    ));
+    auto callbackCtx = new RequestBodyReadContext(
+        new Persistent<Function>(isolate, onData),
+        new Persistent<Function>(isolate, onEnd)
+    );
 
     ice_http_request_take_and_read_body(
         req,
         [](const ice_uint8_t *data, ice_uint32_t len, void *call_with) -> ice_uint8_t {
+            auto callbackCtx = (RequestBodyReadContext *) call_with;
+            if(callbackCtx -> shouldTerminate) {
+                return 0;
+            }
+
             char *raw_buf = new char [len];
             memcpy(raw_buf, data, len);
-            auto info = (std::pair<std::unique_ptr<Persistent<Function>>, std::unique_ptr<Persistent<Function>>> *) call_with;
 
             enqueue_executor([=]() {
                 Isolate *isolate = Isolate::GetCurrent();
                 HandleScope scope(isolate);
 
-                Local<Function> local_cb = Local<Function>::New(isolate, *info -> first);
+                Local<Function> local_cb = Local<Function>::New(isolate, *callbackCtx -> onData);
     
                 auto data_buf = node::Buffer::New(
                     isolate,
@@ -537,25 +557,28 @@ static void http_request_take_and_read_body(const FunctionCallbackInfo<Value>& a
                     data_buf.ToLocalChecked()
                 };
     
-                node::MakeCallback(
+                Local<Value> ret = node::MakeCallback(
                     isolate,
                     Object::New(isolate),
                     local_cb,
                     1,
                     argv
                 );
+                if(ret -> BooleanValue() == false) {
+                    callbackCtx -> shouldTerminate = true;
+                }
             });
 
             return 1;
         },
         [](ice_uint8_t ok, void *call_with) {
             enqueue_executor([=]() {
-                auto info = (std::pair<std::unique_ptr<Persistent<Function>>, std::unique_ptr<Persistent<Function>>> *) call_with;
+                auto callbackCtx = (RequestBodyReadContext *) call_with;
 
                 Isolate *isolate = Isolate::GetCurrent();
                 HandleScope scope(isolate);
     
-                Local<Function> local_cb = Local<Function>::New(isolate, *info -> second);
+                Local<Function> local_cb = Local<Function>::New(isolate, *callbackCtx -> onEnd);
                 Local<Value> argv[] = {
                     Boolean::New(isolate, (bool) ok)
                 };
@@ -567,13 +590,10 @@ static void http_request_take_and_read_body(const FunctionCallbackInfo<Value>& a
                     argv
                 );
     
-                info -> first -> Reset();
-                info -> second -> Reset();
-    
-                delete info;
+                delete callbackCtx;
             });
         },
-        (void *) callbacks
+        (void *) callbackCtx
     );
 }
 

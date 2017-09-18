@@ -12,6 +12,7 @@ rt.route("POST", "/echo", (req) => {
 
     req.intoBody((data) => {
         result.push(data);
+        return true;
     }, (ok) => {
         req.createResponse().setBody(Buffer.concat(result)).send();
     });
