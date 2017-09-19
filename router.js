@@ -17,6 +17,19 @@ class Router {
 
             server.route(ep.path, target);
         }
+
+        server.routeDefault(async (req) => {
+            let reqUri = req.getUri();
+
+            if(!(await call_middlewares(
+                this.middlewares.filter(v => reqUri.startsWith(v.path)),
+                req
+            ))) {
+                return;
+            }
+
+            req.createResponse().setStatus(404).setBody("Not found\n").send();
+        });
     }
 
     route(method, path, target) {
@@ -75,18 +88,8 @@ class Detached {
 
 function build_target(ep, mws) {
     return async function(req) {
-        for(const mw of mws) {
-            try {
-                await mw.call(req);
-            } catch(e) {
-                if(e instanceof lib.HttpResponse) {
-                    e.send();
-                } else {
-                    console.log(e);
-                    req.createResponse().setStatus(500).send();
-                }
-                return;
-            }
+        if(!(await call_middlewares(mws, req))) {
+            return;
         }
 
         let ret = null;
@@ -110,7 +113,7 @@ function build_target(ep, mws) {
         } else {
             try {
                 ret = Buffer.from(ret);
-                req.createResponse().send(ret);
+                req.createResponse().setBody(ret).send();
             } catch(e) {
                 console.log("Warning: Invalid return value from route target");
                 req.createResponse().setStatus(500).send();
@@ -118,6 +121,23 @@ function build_target(ep, mws) {
         }
     };
 }
+
+async function call_middlewares(mws, req) {
+    for(const mw of mws) {
+        try {
+            await mw.call(req);
+        } catch(e) {
+            if(e instanceof lib.HttpResponse) {
+                e.send();
+            } else {
+                console.log(e);
+                req.createResponse().setStatus(500).send();
+            }
+            return false;
+        }
+    }
+    return true;
+};
 
 module.exports.Router = Router;
 module.exports.Detached = Detached;

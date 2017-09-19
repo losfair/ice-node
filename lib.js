@@ -26,6 +26,14 @@ class HttpServer {
         });
         core.http_server_add_route(this.inst, rt);
     }
+
+    routeDefault(target) {
+        let rt = core.http_server_route_create("", function (ctx, rawReq) {
+            let req = new HttpRequest(ctx, rawReq);
+            target(req);
+        });
+        core.http_server_set_default_route(this.inst, rt);
+    }
 }
 
 class HttpServerConfig {
@@ -39,14 +47,14 @@ class HttpServerConfig {
         this.inst = null;
     }
 
-    set_num_executors(n) {
+    setNumExecutors(n) {
         assert(this.inst);
         assert(typeof(n) == "number" && n > 0);
         core.http_server_config_set_num_executors(this.inst, n);
         return this;
     }
 
-    set_listen_addr(addr) {
+    setListenAddr(addr) {
         assert(this.inst);
         assert(typeof(addr) == "string");
         core.http_server_config_set_listen_addr(this.inst, addr);
