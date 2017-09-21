@@ -1,6 +1,0 @@
-build/
-*.so
-node_modules/
-*.a
-*.log
-*.bc
