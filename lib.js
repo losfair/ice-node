@@ -66,6 +66,11 @@ class HttpRequest {
     constructor(ctx, req) {
         this.ctx = ctx;
         this.inst = req;
+        this._cache = {
+            uri: null,
+            method: null,
+            remoteAddr: null
+        };
     }
 
     createResponse() {
@@ -99,6 +104,18 @@ class HttpRequest {
         assert(this.inst);
         assert(typeof(k) == "string");
         return core.http_request_get_header(this.inst, k);
+    }
+
+    get uri() {
+        return (this._cache.uri || (this._cache.uri = this.getUri()));
+    }
+
+    get method() {
+        return (this._cache.method || (this._cache.method = this.getMethod()));
+    }
+
+    get remoteAddr() {
+        return (this._cache.remoteAddr || (this._cache.remoteAddr = this.getRemoteAddr()));
     }
 }
 

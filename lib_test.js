@@ -16,7 +16,7 @@ rt.route("GET", "/info/uri", (req) => {
         throw new Error("Middleware not called");
     }
 
-    return req.getUri();
+    return req.uri;
 });
 
 rt.route("POST", "/echo", (req) => {
