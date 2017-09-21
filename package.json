@@ -1,0 +1,21 @@
+{
+  "name": "ice-node",
+  "version": "0.4.0-alpha.1",
+  "description": "Node bindings for Ice Core v0.4",
+  "main": "lib.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install": "node-gyp rebuild"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/losfair/ice-node-v4.git"
+  },
+  "author": "Heyang Zhou",
+  "license": "MIT",
+  "gypfile": true,
+  "bugs": {
+    "url": "https://github.com/losfair/ice-node-v4/issues"
+  },
+  "homepage": "https://github.com/losfair/ice-node-v4#readme"
+}
