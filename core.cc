@@ -14,7 +14,7 @@
 #include <utility>
 #include <string.h>
 
-#include "ice-api-v4/init.h"
+#include "ice-api-v4/metadata.h"
 #include "ice-api-v4/glue.h"
 #include "ice-api-v4/http.h"
 
@@ -620,8 +620,18 @@ static void storage_file_http_response_begin_send(const FunctionCallbackInfo<Val
     args.GetReturnValue().Set(Boolean::New(isolate, (bool) ret));
 }
 
+void check_version() {
+    const char *version = ice_metadata_get_version();
+    const char *target_version = "0.4.0-alpha.";
+
+    assert(strncmp(target_version, version, strlen(target_version)) == 0);
+}
+
 static void init_module(Local<Object> exports) {
     uv_async_init(uv_default_loop(), &global_async_handle, handle_async_callback);
+
+    check_version();
+
     NODE_SET_METHOD(exports, "http_server_config_create", http_server_config_create);
     NODE_SET_METHOD(exports, "http_server_config_destroy", http_server_config_destroy);
     NODE_SET_METHOD(exports, "http_server_config_set_listen_addr", http_server_config_set_listen_addr);
