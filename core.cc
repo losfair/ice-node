@@ -949,6 +949,161 @@ static void rpc_param_clone(const FunctionCallbackInfo<Value>& args) {
     );
 }
 
+static void rpc_client_create(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    String::Utf8Value addr(args[0] -> ToString());
+    NativeResource res(
+        NR_RpcClient,
+        (void *) ice_rpc_client_create(*addr)
+    );
+
+    args.GetReturnValue().Set(
+        res.build_object(isolate)
+    );
+}
+
+static void rpc_client_destroy(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> arg0 = args[0] -> ToObject();
+
+    NativeResource res = NativeResource::from_object(arg0);
+    assert(res.get_type() == NR_RpcClient);
+
+    auto client = (IceRpcClient) res.get_data();
+    ice_rpc_client_destroy(client);
+
+    NativeResource::reset_object(arg0);
+}
+
+static void rpc_client_connect(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    NativeResource res = NativeResource::from_object(args[0] -> ToObject());
+    assert(res.get_type() == NR_RpcClient);
+
+    auto client = (IceRpcClient) res.get_data();
+
+    Local<Function> cb = Local<Function>::Cast(args[1]);
+    auto persistent_cb = new Persistent<Function>(isolate, cb);
+
+    ice_rpc_client_connect(
+        client,
+        [](IceRpcClientConnection conn, void *call_with) {
+            auto persistent_cb = (Persistent<Function> *) call_with;
+            enqueue_executor([=]() {
+                Isolate *isolate = Isolate::GetCurrent();
+                HandleScope scope(isolate);
+
+                Local<Function> cb = Local<Function>::New(isolate, *persistent_cb);
+                persistent_cb -> Reset();
+                delete persistent_cb;
+
+                Local<Value> target_conn;
+                
+                if(conn == NULL) {
+                    target_conn = Null(isolate);
+                } else {
+                    target_conn = NativeResource(
+                        NR_RpcClientConnection,
+                        (void *) conn
+                    ).build_object(isolate);
+                }
+
+                Local<Value> argv[] = {
+                    target_conn
+                };
+                node::MakeCallback(
+                    isolate,
+                    Object::New(isolate),
+                    cb,
+                    1,
+                    argv
+                );
+            });
+        },
+        (void *) persistent_cb
+    );
+}
+
+static void rpc_client_connection_destroy(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> arg0 = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(arg0);
+    assert(res.get_type() == NR_RpcClientConnection);
+
+    auto conn = (IceRpcClientConnection) res.get_data();
+    NativeResource::reset_object(arg0);
+
+    ice_rpc_client_connection_destroy(conn);
+}
+
+static void rpc_client_connection_call(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    Local<Object> arg0 = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(arg0);
+    assert(res.get_type() == NR_RpcClientConnection);
+
+    auto conn = (IceRpcClientConnection) res.get_data();
+
+    String::Utf8Value method_name(args[1] -> ToString());
+    Local<Array> params = Local<Array>::Cast(args[2]);
+    auto paramsLen = params -> Length();
+    std::vector<IceRpcParam> target_params;
+
+    for(unsigned int i = 0; i < paramsLen; i++) {
+        auto paramObj = params -> Get(i) -> ToObject();
+        NativeResource paramRes = NativeResource::from_object(paramObj);
+        assert(paramRes.get_type() == NR_RpcParam);
+
+        IceRpcParam p = (IceRpcParam) paramRes.get_data();
+        NativeResource::reset_object(paramObj);
+
+        target_params.push_back(p);
+    }
+
+    Local<Function> cb = Local<Function>::Cast(args[3]);
+    auto persistent_cb = new Persistent<Function>(isolate, cb);
+
+    ice_rpc_client_connection_call(
+        conn,
+        *method_name,
+        &target_params[0],
+        target_params.size(),
+        [](const IceRpcParam ret_borrowed, void *call_with) {
+            auto persistent_cb = (Persistent<Function> *) call_with;
+            IceRpcParam ret = NULL;
+            if(ret_borrowed) {
+                ret = ice_rpc_param_clone(ret_borrowed);
+            }
+            enqueue_executor([=]() {
+                Isolate *isolate = Isolate::GetCurrent();
+                HandleScope scope(isolate);
+
+                Local<Function> cb = Local<Function>::New(isolate, *persistent_cb);
+                persistent_cb -> Reset();
+                delete persistent_cb;
+
+                Local<Value> targetRet;
+                if(ret == NULL) {
+                    targetRet = Null(isolate);
+                } else {
+                    targetRet = NativeResource(NR_RpcParam, (void *) ret).build_object(isolate);
+                }
+                Local<Value> argv[] = {
+                    targetRet
+                };
+                node::MakeCallback(
+                    isolate,
+                    Object::New(isolate),
+                    cb,
+                    1,
+                    argv
+                );
+            });
+        },
+        (void *) persistent_cb
+    );
+}
+
 void check_version() {
     const char *version = ice_metadata_get_version();
     const char *target_version = "0.4.0-alpha.";
@@ -1008,6 +1163,11 @@ static void init_module(Local<Object> exports) {
     NODE_SET_METHOD(exports, "rpc_param_is_null", rpc_param_is_null);
     NODE_SET_METHOD(exports, "rpc_param_destroy", rpc_param_destroy);
     NODE_SET_METHOD(exports, "rpc_param_clone", rpc_param_clone);
+    NODE_SET_METHOD(exports, "rpc_client_create", rpc_client_create);
+    NODE_SET_METHOD(exports, "rpc_client_destroy", rpc_client_destroy);
+    NODE_SET_METHOD(exports, "rpc_client_connect", rpc_client_connect);
+    NODE_SET_METHOD(exports, "rpc_client_connection_destroy", rpc_client_connection_destroy);
+    NODE_SET_METHOD(exports, "rpc_client_connection_call", rpc_client_connection_call);
     //NODE_SET_METHOD(exports, , );
 }
 

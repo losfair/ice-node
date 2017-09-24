@@ -63,6 +63,67 @@ class RpcCallContext {
     }
 }
 
+class RpcClient {
+    constructor(addr) {
+        assert(typeof(addr) == "string");
+        this.inst = core.rpc_client_create(addr);
+    }
+
+    destroy() {
+        assert(this.inst);
+        core.rpc_client_destroy(this.inst);
+        this.inst = null;
+    }
+
+    connect(cb) {
+        assert(this.inst);
+        core.rpc_client_connect(this.inst, function (conn) {
+            if(conn) {
+                cb(new RpcClientConnection(conn));
+            } else {
+                cb(null);
+            }
+        });
+    }
+}
+
+class RpcClientConnection {
+    constructor(inst) {
+        assert(inst);
+        this.inst = inst;
+    }
+
+    destroy() {
+        assert(this.inst);
+        core.rpc_client_connection_destroy(this.inst);
+        this.inst = null;
+    }
+
+    call(methodName, _params, cb) {
+        assert(this.inst);
+        assert(typeof(methodName) == "string");
+        assert(typeof(cb) == "function");
+
+        let params = _params.map(v => {
+            assert(v instanceof RpcParam && v.inst);
+            return v.inst;
+        });
+
+        core.rpc_client_connection_call(
+            this.inst,
+            methodName,
+            params,
+            function (ret) {
+                if(ret) {
+                    cb(new RpcParam(ret));
+                } else {
+                    cb(null);
+                }
+            }
+        );
+    }
+}
+
 class RpcParam {
     constructor(inst) {
         assert(inst);
@@ -146,3 +207,5 @@ module.exports.RpcServerConfig = RpcServerConfig;
 module.exports.RpcServer = RpcServer;
 module.exports.RpcCallContext = RpcCallContext;
 module.exports.RpcParam = RpcParam;
+module.exports.RpcClient = RpcClient;
+module.exports.RpcClientConnection = RpcClientConnection;
