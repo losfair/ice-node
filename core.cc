@@ -17,6 +17,7 @@
 #include "ice-api-v4/metadata.h"
 #include "ice-api-v4/glue.h"
 #include "ice-api-v4/http.h"
+#include "ice-api-v4/rpc.h"
 
 using namespace v8;
 
@@ -29,7 +30,13 @@ enum NativeResourceType {
     NR_HttpRouteInfo,
     NR_HttpEndpointContext,
     NR_HttpRequest,
-    NR_HttpResponse
+    NR_HttpResponse,
+    NR_RpcServerConfig,
+    NR_RpcServer,
+    NR_RpcCallContext,
+    NR_RpcParam,
+    NR_RpcClient,
+    NR_RpcClientConnection
 };
 
 struct AsyncCallbackInfo {
@@ -620,6 +627,328 @@ static void storage_file_http_response_begin_send(const FunctionCallbackInfo<Val
     args.GetReturnValue().Set(Boolean::New(isolate, (bool) ret));
 }
 
+static void rpc_server_config_create(const FunctionCallbackInfo<Value>& args) {
+    NativeResource res(
+        NR_RpcServerConfig,
+        (void *) ice_rpc_server_config_create()
+    );
+    args.GetReturnValue().Set(res.build_object(args.GetIsolate()));
+}
+
+static void rpc_server_config_destroy(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> arg0 = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        arg0
+    );
+    assert(res.get_type() == NR_RpcServerConfig);
+
+    ice_rpc_server_config_destroy((IceRpcServerConfig) res.get_data());
+    NativeResource::reset_object(arg0);
+}
+
+static void rpc_server_config_add_method(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    Local<Object> arg0 = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        arg0
+    );
+    assert(res.get_type() == NR_RpcServerConfig);
+
+    auto config = (IceRpcServerConfig) res.get_data();
+
+    String::Utf8Value name(args[1] -> ToString());
+
+    Local<Function> cb = Local<Function>::Cast(args[2]);
+    auto persistent_cb = new Persistent<Function>(isolate, cb);
+
+    ice_rpc_server_config_add_method(
+        config,
+        *name,
+        [](IceRpcCallContext ctx, void *call_with) {
+            enqueue_executor([=]() {
+                Isolate *isolate = Isolate::GetCurrent();
+                HandleScope scope(isolate);
+    
+                auto pf = (Persistent<Function> *) call_with;
+                auto cb = Local<Function>::New(isolate, *pf);
+
+                Local<Value> argv[] = {
+                    NativeResource(NR_RpcCallContext, (void *) ctx).build_object(isolate)
+                };
+                node::MakeCallback(
+                    isolate,
+                    Object::New(isolate),
+                    cb,
+                    1,
+                    argv
+                );
+            });
+        },
+        (void *) persistent_cb
+    );
+}
+
+static void rpc_server_create(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    Local<Object> arg0 = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        arg0
+    );
+    assert(res.get_type() == NR_RpcServerConfig);
+
+    auto config = (IceRpcServerConfig) res.get_data();
+    NativeResource::reset_object(arg0);
+
+    IceRpcServer server = ice_rpc_server_create(config);
+    args.GetReturnValue().Set(
+        NativeResource(
+            NR_RpcServer,
+            (void *) server
+        ).build_object(isolate)
+    );
+}
+
+static void rpc_server_start(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> arg0 = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        arg0
+    );
+    assert(res.get_type() == NR_RpcServer);
+    auto server = (IceRpcServer) res.get_data();
+
+    String::Utf8Value addr(args[1] -> ToString());
+    ice_rpc_server_start(server, *addr);
+}
+
+static void rpc_call_context_get_num_params(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    Local<Object> arg0 = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        arg0
+    );
+    assert(res.get_type() == NR_RpcCallContext);
+
+    auto ctx = (IceRpcCallContext) res.get_data();
+    int n = ice_rpc_call_context_get_num_params(ctx);
+
+    args.GetReturnValue().Set(
+        Number::New(isolate, n)
+    );
+}
+
+static void rpc_call_context_get_param(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    Local<Object> arg0 = args[0] -> ToObject();
+    NativeResource res = NativeResource::from_object(
+        arg0
+    );
+    assert(res.get_type() == NR_RpcCallContext);
+
+    auto ctx = (IceRpcCallContext) res.get_data();
+    int pos = args[1] -> NumberValue();
+
+    IceRpcParam p = ice_rpc_call_context_get_param(ctx, pos);
+    if(p == NULL) {
+        args.GetReturnValue().Set(Null(isolate));
+    } else {
+        args.GetReturnValue().Set(
+            NativeResource(NR_RpcParam, (void *) p).build_object(isolate)
+        );
+    }
+}
+
+static void rpc_call_context_end(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> arg0 = args[0] -> ToObject();
+    NativeResource ctxRes = NativeResource::from_object(
+        arg0
+    );
+    assert(ctxRes.get_type() == NR_RpcCallContext);
+
+    Local<Object> arg1 = args[1] -> ToObject();
+    NativeResource retRes = NativeResource::from_object(
+        arg1
+    );
+    assert(retRes.get_type() == NR_RpcParam);
+
+    auto ctx = (IceRpcCallContext) ctxRes.get_data();
+    auto ret = (IceRpcParam) retRes.get_data();
+    NativeResource::reset_object(arg0);
+    NativeResource::reset_object(arg1);
+
+    ice_rpc_call_context_end(ctx, ret);
+}
+
+static void rpc_param_build_i32(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    int v = args[0] -> NumberValue();
+
+    IceRpcParam p = ice_rpc_param_build_i32(v);
+    NativeResource res(NR_RpcParam, (void *) p);
+
+    args.GetReturnValue().Set(res.build_object(isolate));
+}
+
+static void rpc_param_build_f64(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    double v = args[0] -> NumberValue();
+
+    IceRpcParam p = ice_rpc_param_build_f64(v);
+    NativeResource res(NR_RpcParam, (void *) p);
+
+    args.GetReturnValue().Set(res.build_object(isolate));
+}
+
+static void rpc_param_build_string(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    String::Utf8Value v(args[0] -> ToString());
+
+    IceRpcParam p = ice_rpc_param_build_string(*v);
+    NativeResource res(NR_RpcParam, (void *) p);
+
+    args.GetReturnValue().Set(res.build_object(isolate));
+}
+
+static void rpc_param_build_error(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    Local<Object> arg0 = args[0] -> ToObject();
+    NativeResource fromRes = NativeResource::from_object(arg0);
+
+    assert(fromRes.get_type() == NR_RpcParam);
+    auto from = (IceRpcParam) fromRes.get_data();
+
+    NativeResource::reset_object(arg0);
+
+    IceRpcParam p = ice_rpc_param_build_error(from);
+    NativeResource res(NR_RpcParam, (void *) p);
+
+    args.GetReturnValue().Set(res.build_object(isolate));
+}
+
+static void rpc_param_build_bool(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+    bool v = args[0] -> BooleanValue();
+
+    IceRpcParam p = ice_rpc_param_build_bool(v);
+    NativeResource res(NR_RpcParam, (void *) p);
+
+    args.GetReturnValue().Set(res.build_object(isolate));
+}
+
+static void rpc_param_build_null(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    IceRpcParam p = ice_rpc_param_build_null();
+    NativeResource res(NR_RpcParam, (void *) p);
+
+    args.GetReturnValue().Set(res.build_object(isolate));
+}
+
+static void rpc_param_get_i32(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    NativeResource res = NativeResource::from_object(args[0] -> ToObject());
+    assert(res.get_type() == NR_RpcParam);
+    IceRpcParam p = (IceRpcParam) res.get_data();
+
+    int v = ice_rpc_param_get_i32(p);
+    args.GetReturnValue().Set(Number::New(isolate, v));
+}
+
+static void rpc_param_get_f64(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    NativeResource res = NativeResource::from_object(args[0] -> ToObject());
+    assert(res.get_type() == NR_RpcParam);
+    IceRpcParam p = (IceRpcParam) res.get_data();
+
+    double v = ice_rpc_param_get_f64(p);
+    args.GetReturnValue().Set(Number::New(isolate, v));
+}
+
+static void rpc_param_get_string(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    NativeResource res = NativeResource::from_object(args[0] -> ToObject());
+    assert(res.get_type() == NR_RpcParam);
+    IceRpcParam p = (IceRpcParam) res.get_data();
+
+    ice_owned_string_t v = ice_rpc_param_get_string_to_owned(p);
+    if(v == NULL) {
+        args.GetReturnValue().Set(Null(isolate));
+    } else {
+        Local<Value> ret = String::NewFromUtf8(isolate, v);
+        ice_glue_destroy_cstring(v);
+        args.GetReturnValue().Set(ret);
+    }
+}
+
+static void rpc_param_get_bool(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    NativeResource res = NativeResource::from_object(args[0] -> ToObject());
+    assert(res.get_type() == NR_RpcParam);
+    IceRpcParam p = (IceRpcParam) res.get_data();
+
+    bool v = ice_rpc_param_get_bool(p);
+    args.GetReturnValue().Set(Boolean::New(isolate, v));
+}
+
+static void rpc_param_get_error(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    NativeResource res = NativeResource::from_object(args[0] -> ToObject());
+    assert(res.get_type() == NR_RpcParam);
+    IceRpcParam p = (IceRpcParam) res.get_data();
+
+    IceRpcParam v = ice_rpc_param_get_error(p);
+    if(v == NULL) {
+        args.GetReturnValue().Set(Null(isolate));
+    } else {
+        NativeResource ret(NR_RpcParam, (void *) v);
+        args.GetReturnValue().Set(ret.build_object(isolate));
+    }
+}
+
+static void rpc_param_is_null(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    NativeResource res = NativeResource::from_object(args[0] -> ToObject());
+    assert(res.get_type() == NR_RpcParam);
+    IceRpcParam p = (IceRpcParam) res.get_data();
+
+    bool ret = ice_rpc_param_is_null(p);
+    args.GetReturnValue().Set(Boolean::New(isolate, ret));
+}
+
+static void rpc_param_destroy(const FunctionCallbackInfo<Value>& args) {
+    Local<Object> arg0 = args[0] -> ToObject();
+
+    NativeResource res = NativeResource::from_object(arg0);
+    assert(res.get_type() == NR_RpcParam);
+    IceRpcParam p = (IceRpcParam) res.get_data();
+
+    NativeResource::reset_object(arg0);
+    ice_rpc_param_destroy(p);
+}
+
+static void rpc_param_clone(const FunctionCallbackInfo<Value>& args) {
+    Isolate *isolate = args.GetIsolate();
+
+    NativeResource res = NativeResource::from_object(args[0] -> ToObject());
+    assert(res.get_type() == NR_RpcParam);
+    IceRpcParam p = (IceRpcParam) res.get_data();
+
+    IceRpcParam ret = ice_rpc_param_clone(p);
+
+    args.GetReturnValue().Set(
+        NativeResource(NR_RpcParam, (void *) ret).build_object(isolate)
+    );
+}
+
 void check_version() {
     const char *version = ice_metadata_get_version();
     const char *target_version = "0.4.0-alpha.";
@@ -657,6 +986,29 @@ static void init_module(Local<Object> exports) {
     NODE_SET_METHOD(exports, "http_server_endpoint_context_take_request", http_server_endpoint_context_take_request);
     NODE_SET_METHOD(exports, "http_request_destroy", http_request_destroy);
     NODE_SET_METHOD(exports, "http_request_take_and_read_body", http_request_take_and_read_body);
+    NODE_SET_METHOD(exports, "rpc_server_config_create", rpc_server_config_create);
+    NODE_SET_METHOD(exports, "rpc_server_config_destroy", rpc_server_config_destroy);
+    NODE_SET_METHOD(exports, "rpc_server_config_add_method", rpc_server_config_add_method);
+    NODE_SET_METHOD(exports, "rpc_server_create", rpc_server_create);
+    NODE_SET_METHOD(exports, "rpc_server_start", rpc_server_start);
+    NODE_SET_METHOD(exports, "rpc_call_context_get_num_params", rpc_call_context_get_num_params);
+    NODE_SET_METHOD(exports, "rpc_call_context_get_param", rpc_call_context_get_param);
+    NODE_SET_METHOD(exports, "rpc_call_context_end", rpc_call_context_end);
+    NODE_SET_METHOD(exports, "rpc_param_build_i32", rpc_param_build_i32);
+    NODE_SET_METHOD(exports, "rpc_param_build_f64", rpc_param_build_f64);
+    NODE_SET_METHOD(exports, "rpc_param_build_string", rpc_param_build_string);
+    NODE_SET_METHOD(exports, "rpc_param_build_error", rpc_param_build_error);
+    NODE_SET_METHOD(exports, "rpc_param_build_bool", rpc_param_build_bool);
+    NODE_SET_METHOD(exports, "rpc_param_build_null", rpc_param_build_null);
+    NODE_SET_METHOD(exports, "rpc_param_get_i32", rpc_param_get_i32);
+    NODE_SET_METHOD(exports, "rpc_param_get_f64", rpc_param_get_f64);
+    NODE_SET_METHOD(exports, "rpc_param_get_string", rpc_param_get_string);
+    NODE_SET_METHOD(exports, "rpc_param_get_bool", rpc_param_get_bool);
+    NODE_SET_METHOD(exports, "rpc_param_get_error", rpc_param_get_error);
+    NODE_SET_METHOD(exports, "rpc_param_is_null", rpc_param_is_null);
+    NODE_SET_METHOD(exports, "rpc_param_destroy", rpc_param_destroy);
+    NODE_SET_METHOD(exports, "rpc_param_clone", rpc_param_clone);
+    //NODE_SET_METHOD(exports, , );
 }
 
 NODE_MODULE(addon, init_module)
